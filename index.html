@@ -1858,6 +1858,19 @@ function openModal(innerHtml, wide=false) {
     </div>`;
 }
 function closeModal() { document.getElementById('modal-zone').innerHTML=''; }
+// Promise-based confirm dialog (resolves true/false).
+function confirmDialog(title, message, okLabel='Confirm', cancelLabel='Cancel'){
+  return new Promise((resolve)=>{
+    window.__confirmResolve = (v)=>{ closeModal(); window.__confirmResolve=null; resolve(v); };
+    openModal(`
+      <div class="modal-head"><h3>${escapeHtml(title)}</h3><button class="modal-close" onclick="window.__confirmResolve&&window.__confirmResolve(false)">✕</button></div>
+      <p class="text-sm" style="line-height:1.6">${escapeHtml(message)}</p>
+      <div class="flex gap-2 justify-end mt-2">
+        <button class="btn btn-ghost" onclick="window.__confirmResolve&&window.__confirmResolve(false)">${escapeHtml(cancelLabel)}</button>
+        <button class="btn btn-gold" onclick="window.__confirmResolve&&window.__confirmResolve(true)">${escapeHtml(okLabel)}</button>
+      </div>`);
+  });
+}
 
 // ── Lightbox ──
 function openLightbox(src) {
@@ -2566,11 +2579,11 @@ function applyMsetclHeaderBanner(ws, colCount) {
     ws[addr].s = {
       font: { name:'Calibri', bold:true, sz: r===0?14:11, color:{rgb:'1F2937'} },
       fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : {patternType:'solid', fgColor:{rgb:'EFF1F4'}},
-      alignment: { horizontal:'center', vertical:'center', wrapText:false },
+      alignment: { horizontal:'center', vertical:'center', wrapText:true },
       border: r===3 ? {bottom:{style:'medium',color:{rgb:'9AA3AF'}}} : undefined
     };
+    setRowHeight(ws, r, r===0 ? 26 : 20);
   }
-  setRowHeight(ws, 0, 24);
 }
 
 // ── Single-row MSETCL title banner — for multi-estimate summary sheets
@@ -4364,6 +4377,7 @@ async function exportEstimateExcel() {
     const colCount = itemRows[0].length;
     ws['!merges'] = ws['!merges'] || [];
     const wordsRow = header.length + itemRows.length;              // Amount-in-words row
+    ws['!merges'].push({s:{r:header.length,c:0}, e:{r:header.length,c:colCount-1}});  // section-title banner
     ws['!merges'].push({s:{r:wordsRow,c:2}, e:{r:wordsRow,c:colCount-1}});
     ws['!merges'].push({s:{r:sumStart,c:2}, e:{r:sumStart,c:colCount-1}});  // "TOTALS SUMMARY" header
     for (let si=1; si<sumLines.length; si++){
@@ -5175,16 +5189,26 @@ async function sorUploadHandler(evt){
   const code = (document.getElementById('sor-new-code')||{}).value.trim();
   const status = document.getElementById('sor-upload-status');
   if (!version) { toast('Enter a version name first.','warn'); return; }
+  // A new SOR release must use a NEW version name. Under a new version, repeated
+  // item numbers from older versions are ADDED (never rejected). Re-using an
+  // existing version name would skip items already stored under it.
+  if ((ST.sorVersions||[]).includes(version)) {
+    const proceed = await confirmDialog(
+      `Version "${version}" already exists`,
+      `A new SOR release should get a new version name (e.g. "SOR March 2026") so its items — even repeated numbers from earlier SORs — are added under it. If you continue with this existing name, only item numbers not already in this version will be added; the rest are skipped. Continue anyway?`,
+      'Continue', 'Cancel');
+    if (!proceed) return;
+  }
   if (status) status.innerHTML = '<span class="spinner dark"></span> Reading…';
   try {
     const X = await ensureSheetJS();
     const wb = X.read(await file.arrayBuffer(), {type:'array'});
     const grid = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, blankrows:false, defval:''});
-    let hIdx = grid.findIndex(r=> r.some(c=>/material\s*\/?\s*service\s*no/i.test(String(c))));
-    if (hIdx<0) throw new Error('Header row with "Material/Service No" not found.');
+    let hIdx = grid.findIndex(r=> r.some(c=>/(material\s*\/?\s*service\s*no|^item\s*no)/i.test(String(c).trim())));
+    if (hIdx<0) throw new Error('Header row with "Item No" (or "Material/Service No") not found.');
     const H = grid[hIdx].map(c=>String(c).trim());
     const ci = {
-      mat:H.findIndex(c=>/material\s*\/?\s*service\s*no/i.test(c)), desc:H.findIndex(c=>/description/i.test(c)),
+      mat:H.findIndex(c=>/(material\s*\/?\s*service\s*no|^item\s*no)/i.test(c)), desc:H.findIndex(c=>/description/i.test(c)),
       uom:H.findIndex(c=>/uom|unit/i.test(c)), sec:H.findIndex(c=>/section/i.test(c)), rate:H.findIndex(c=>/rate|price/i.test(c)),
     };
     const items = [];
@@ -5202,8 +5226,9 @@ async function sorUploadHandler(evt){
     if (!res.ok) throw new Error(explainBackendError(res.error)||'Import failed');
     if (code) { try { await apiPost({action:'setSorCode', version, code, actingRole:ST.user.role}); ST.sorCodes = ST.sorCodes||{}; ST.sorCodes[version]=code; } catch(e){} }
     if (!ST.sorVersions.includes(version)) ST.sorVersions.push(version);
-    if (status) status.innerHTML = `<span class="badge badge-ok">✓ Published "${escapeHtml(version)}"${code?' (code '+escapeHtml(code)+')':''} — ${items.length} items.</span>`;
-    toast('Future SOR published.','ok');
+    const added = res.added!=null?res.added:items.length, skipped = res.skipped||0;
+    if (status) status.innerHTML = `<span class="badge badge-ok">✓ Published "${escapeHtml(version)}"${code?' (code '+escapeHtml(code)+')':''} — ${added} added${skipped?`, ${skipped} already present (skipped)`:''}.</span>`;
+    toast(`SOR "${version}" published — ${added} item(s) added.`,'ok');
   } catch(err){ console.error(err); if (status) status.innerHTML = `<span class="badge badge-bad">✗ ${escapeHtml(err.message||'error')}</span>`; }
 }
 function switchRPTab(tab) {
@@ -7844,15 +7869,20 @@ async function dbTemplateDownload(){
     const X = await ensureSheetJS();
     const rows = [
       ['Create Estimate — Data Entry Template'],
-      ['One row per item. Exworks Price: enter 1 (Re 1) to use the LATEST SOR rate; enter an actual rate for Non-SOR / custom items.'],
+      ['Only Item No is required. Leave the rest blank to auto-fill from the catalog (existing Description/Rate are never changed). Rate: enter 1 (Re 1) or blank ⇒ latest SOR rate; a real rate applies only to items not in the catalog. Section = supply / project (ETC) / om (O&M). Source = SOR / Non-SOR (auto if blank).'],
       [],
-      ['Material/Service No','Quantity','Exworks Price (Rs.)'],
-      ['500030398', 10, 1],
-      ['300012345', 2, 1],
+      ['Item No','Description','UOM','Quantity','Rate (Rs.)','Section','Source'],
+      ['▼ EXAMPLE ROWS — DELETE BEFORE UPLOADING (they are ignored automatically) ▼'],
+      ['500030398', '‹EXAMPLE – delete this row›', '', 10, 1, '', ''],
+      ['300012345', '‹EXAMPLE – delete this row› Custom ETC service', 'Job', 2, 8000, 'project', 'Non-SOR'],
+      ['▲ EXAMPLE ROWS — enter your real items above this line ▲'],
     ];
     const ws = X.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:26},{wch:12},{wch:26}];
-    ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}}];
+    ws['!cols'] = [{wch:18},{wch:44},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12}];
+    ws['!merges'] = [
+      {s:{r:0,c:0},e:{r:0,c:6}}, {s:{r:1,c:0},e:{r:1,c:6}},
+      {s:{r:4,c:0},e:{r:4,c:6}}, {s:{r:7,c:0},e:{r:7,c:6}},
+    ];
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Items');
     X.writeFile(wb, 'Estimate_Data_Template.xlsx');
     toast('Template downloaded — fill it and upload.','ok');
@@ -7863,37 +7893,63 @@ async function dbUploadHandler(evt){
   if (!file) return;
   toast('Reading sheet…','ok',1500);
   try {
-    await ensureSorLoaded();
+    await Promise.all([ensureSorLoaded(), ensureNonSorLoaded()]);
     const X = await ensureSheetJS();
     const wb = X.read(await file.arrayBuffer(), {type:'array'});
     const grid = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, blankrows:false, defval:''});
-    let hIdx = grid.findIndex(r => r.some(c=>/material\s*\/?\s*service\s*no/i.test(String(c))) && r.some(c=>/quantity/i.test(String(c))));
-    if (hIdx < 0) throw new Error('Header row with "Material/Service No" and "Quantity" not found.');
+    let hIdx = grid.findIndex(r => r.some(c=>/(material\s*\/?\s*service\s*no|^item\s*no)/i.test(String(c).trim())));
+    if (hIdx < 0) throw new Error('Header row with "Item No" (or "Material/Service No") not found.');
     const H = grid[hIdx].map(c=>String(c).trim());
     const ci = {
-      mat:   H.findIndex(c=>/material\s*\/?\s*service\s*no/i.test(c)),
+      mat:   H.findIndex(c=>/(material\s*\/?\s*service\s*no|^item\s*no)/i.test(c)),
+      desc:  H.findIndex(c=>/description/i.test(c)),
+      uom:   H.findIndex(c=>/^uom$|unit/i.test(c)),
       qty:   H.findIndex(c=>/quantity|qty/i.test(c)),
       price: H.findIndex(c=>/price|exworks|rate/i.test(c)),
+      sec:   H.findIndex(c=>/section/i.test(c)),
+      src:   H.findIndex(c=>/source/i.test(c)),
     };
+    const cell = (row, i)=> (i>=0 && row[i]!=null) ? String(row[i]).trim() : '';
+    const normSec = (s)=>{ s=String(s||'').toLowerCase(); if(/etc|project/.test(s)) return 'project'; if(/o&m|om|service/.test(s)) return 'om'; if(/supply|material/.test(s)) return 'supply'; return ''; };
     const latest = resolveDefaultVersion();
     const items = [];
     for (let r=hIdx+1; r<grid.length; r++){
       const row = grid[r];
-      const matNo = String(row[ci.mat]==null?'':row[ci.mat]).trim();
+      const matNo = cell(row, ci.mat);
       if (!matNo) continue;
-      // Least-information mode: blank/0 quantity ⇒ 1; blank/0/Re1 price ⇒ latest SOR rate.
-      let qty = parseFloat(row[ci.qty]); if (!qty || qty <= 0) qty = 1;
+      // Skip template example / marker rows so a forgotten example never imports
+      const rowText = row.map(x=>String(x==null?'':x)).join(' ');
+      if (/‹EXAMPLE|EXAMPLE ROWS|EXAMPLE – delete|EXAMPLE — delete/i.test(rowText)) continue;
+      // User-entered values from the sheet (may be blank)
+      const uDesc = cell(row, ci.desc), uUom = cell(row, ci.uom), uSec = normSec(cell(row, ci.sec)), uSrc = cell(row, ci.sec>=0?ci.src:-1);
+      let qty = parseFloat(row[ci.qty]); if (!qty || qty <= 0) qty = 1;   // blank/0 ⇒ 1
       const priceRaw = ci.price>=0 ? parseFloat(row[ci.price]) : NaN;
       const price = isNaN(priceRaw) ? 0 : priceRaw;
-      const useLatest = (price===1 || price===0);
-      let desc='', uom='', section=feClassify(matNo)||'supply', source='estimated', rate=price, remark='Not found in catalog — verify';
+      const useLatest = (price===1 || price===0);                        // blank/Re1 ⇒ latest SOR rate
+      // Catalog lookup (SOR first, then Non-SOR)
+      let desc='', uom='', section='', source='estimated', rate=price, remark='';
       const sor = ST.sorCache.find(s=>String(s.item_no)===matNo && s.version===latest) || ST.sorCache.find(s=>String(s.item_no)===matNo);
-      if (sor) { desc=sor.description; uom=sor.uom; section=sor.section||section; source='sor'; rate=useLatest?(sor.rate||0):price; remark=''; }
+      if (sor) { desc=sor.description; uom=sor.uom; section=sor.section; source='sor'; rate=useLatest?(sor.rate||0):price; }
       else {
         const ns = ST.nonSorCache.find(n=>String(n.item_no)===matNo);
-        if (ns) { desc=ns.description; uom=ns.uom; section=ns.section||section; source='nonsor'; rate=useLatest?(ns.rate||0):price; remark=''; }
+        if (ns) { desc=ns.description; uom=ns.uom; section=ns.section; source='nonsor'; rate=useLatest?(ns.rate||0):price; }
       }
-      items.push({ item_no:matNo, description:desc, uom, qty, rate, section, source, remark });
+      // User-entered fields take precedence; catalog fills the gaps; classify last.
+      const inCatalog = !!sor || !!ST.nonSorCache.find(n=>String(n.item_no)===matNo);
+      const finalSource = inCatalog ? source : (uSrc ? (/non/i.test(uSrc)?'nonsor':'sor') : 'estimated');
+      // For items ALREADY in the catalog, the stored Description / UoM / Section /
+      // Rate are authoritative and are NEVER overwritten by sheet entries. User
+      // input only supplies values for items the catalog doesn't have.
+      const finalDesc    = inCatalog ? desc    : (uDesc || desc);
+      const finalUom     = inCatalog ? uom     : (uUom || uom);
+      const finalSection = inCatalog ? (section || feClassify(matNo) || 'supply')
+                                     : (uSec || feClassify(matNo) || 'supply');
+      // Rate: catalog rate stands (Re-1/blank ⇒ that rate). Only for non-catalog
+      // items does a typed rate apply.
+      const finalRate = inCatalog ? rate : (!isNaN(priceRaw) && price>1 ? price : rate);
+      if (!inCatalog) remark = 'Not in catalog — will be offered as a Non-SOR entry';
+      items.push({ item_no:matNo, description:finalDesc, uom:finalUom, qty, rate:finalRate,
+                   section:finalSection, source:finalSource, remark });
     }
     if (!items.length) throw new Error('No item rows found in the sheet.');
     AIC.draftItems = items; AIC.draftExplanation = '';
