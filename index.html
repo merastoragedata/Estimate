@@ -7823,7 +7823,7 @@ function promptNonSorEntries(items){
         <option value="om" ${it.section==='om'?'selected':''}>O&amp;M</option>
       </select></td>
       <td><input id="nse-rate-${i}" type="number" step="any" value="${Number(it.rate)||0}" style="width:100px"></td>
-      <td><input id="nse-rem-${i}" value="" placeholder="(optional)" style="width:100%"></td>
+      <td><input id="nse-rem-${i}" value="${escapeHtml((it.remark && !/^Not in catalog/i.test(it.remark)) ? it.remark : '')}" placeholder="(optional)" style="width:100%"></td>
     </tr>`;
   openModal(`
     <div class="modal-head"><h3>Add ${items.length} item(s) to Non-SOR database?</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -7869,19 +7869,19 @@ async function dbTemplateDownload(){
     const X = await ensureSheetJS();
     const rows = [
       ['Create Estimate — Data Entry Template'],
-      ['Only Item No is required. Leave the rest blank to auto-fill from the catalog (existing Description/Rate are never changed). Rate: enter 1 (Re 1) or blank ⇒ latest SOR rate; a real rate applies only to items not in the catalog. Section = supply / project (ETC) / om (O&M). Source = SOR / Non-SOR (auto if blank).'],
+      ['Only Item No is required. Leave the rest blank to auto-fill from the catalog (existing Description/Rate are never changed). Rate: enter 1 (Re 1) or blank ⇒ latest SOR rate; a real rate applies only to items not in the catalog. Section = supply / project (ETC) / om (O&M). Source = SOR / Non-SOR (auto if blank). Remarks: only needed for Non-SOR items (ignored for SOR items).'],
       [],
-      ['Item No','Description','UOM','Quantity','Rate (Rs.)','Section','Source'],
+      ['Item No','Description','UOM','Quantity','Rate (Rs.)','Section','Source','Remarks'],
       ['▼ EXAMPLE ROWS — DELETE BEFORE UPLOADING (they are ignored automatically) ▼'],
-      ['500030398', '‹EXAMPLE – delete this row›', '', 10, 1, '', ''],
-      ['300012345', '‹EXAMPLE – delete this row› Custom ETC service', 'Job', 2, 8000, 'project', 'Non-SOR'],
+      ['500030398', '‹EXAMPLE – delete this row›', '', 10, 1, '', '', ''],
+      ['300012345', '‹EXAMPLE – delete this row› Custom ETC service', 'Job', 2, 8000, 'project', 'Non-SOR', 'Rate as per vendor quote dated __'],
       ['▲ EXAMPLE ROWS — enter your real items above this line ▲'],
     ];
     const ws = X.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:18},{wch:44},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12}];
+    ws['!cols'] = [{wch:18},{wch:40},{wch:10},{wch:10},{wch:14},{wch:12},{wch:12},{wch:32}];
     ws['!merges'] = [
-      {s:{r:0,c:0},e:{r:0,c:6}}, {s:{r:1,c:0},e:{r:1,c:6}},
-      {s:{r:4,c:0},e:{r:4,c:6}}, {s:{r:7,c:0},e:{r:7,c:6}},
+      {s:{r:0,c:0},e:{r:0,c:7}}, {s:{r:1,c:0},e:{r:1,c:7}},
+      {s:{r:4,c:0},e:{r:4,c:7}}, {s:{r:7,c:0},e:{r:7,c:7}},
     ];
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Items');
     X.writeFile(wb, 'Estimate_Data_Template.xlsx');
@@ -7908,6 +7908,7 @@ async function dbUploadHandler(evt){
       price: H.findIndex(c=>/price|exworks|rate/i.test(c)),
       sec:   H.findIndex(c=>/section/i.test(c)),
       src:   H.findIndex(c=>/source/i.test(c)),
+      rem:   H.findIndex(c=>/remark/i.test(c)),
     };
     const cell = (row, i)=> (i>=0 && row[i]!=null) ? String(row[i]).trim() : '';
     const normSec = (s)=>{ s=String(s||'').toLowerCase(); if(/etc|project/.test(s)) return 'project'; if(/o&m|om|service/.test(s)) return 'om'; if(/supply|material/.test(s)) return 'supply'; return ''; };
@@ -7922,6 +7923,7 @@ async function dbUploadHandler(evt){
       if (/‹EXAMPLE|EXAMPLE ROWS|EXAMPLE – delete|EXAMPLE — delete/i.test(rowText)) continue;
       // User-entered values from the sheet (may be blank)
       const uDesc = cell(row, ci.desc), uUom = cell(row, ci.uom), uSec = normSec(cell(row, ci.sec)), uSrc = cell(row, ci.sec>=0?ci.src:-1);
+      const uRem = cell(row, ci.rem);
       let qty = parseFloat(row[ci.qty]); if (!qty || qty <= 0) qty = 1;   // blank/0 ⇒ 1
       const priceRaw = ci.price>=0 ? parseFloat(row[ci.price]) : NaN;
       const price = isNaN(priceRaw) ? 0 : priceRaw;
@@ -7947,7 +7949,7 @@ async function dbUploadHandler(evt){
       // Rate: catalog rate stands (Re-1/blank ⇒ that rate). Only for non-catalog
       // items does a typed rate apply.
       const finalRate = inCatalog ? rate : (!isNaN(priceRaw) && price>1 ? price : rate);
-      if (!inCatalog) remark = 'Not in catalog — will be offered as a Non-SOR entry';
+      if (!inCatalog) remark = uRem || 'Not in catalog — will be offered as a Non-SOR entry';
       items.push({ item_no:matNo, description:finalDesc, uom:finalUom, qty, rate:finalRate,
                    section:finalSection, source:finalSource, remark });
     }
