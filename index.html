@@ -2526,8 +2526,8 @@ function applySmartColWidths(ws, rows) {
 // Every fill uses patternType:'solid' (required for xlsx-js-style to render),
 // borders are explicit, and the header carries a gold underline accent. ──
 const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
-const _THIN = { style:'thin', color:{ rgb:'D7DEEA' } };
-const _GOLD_EDGE = { style:'medium', color:{ rgb:'9AA3AF' } };
+const _THIN = { style:'thin', color:{ rgb:'000000' } };
+const _GOLD_EDGE = { style:'medium', color:{ rgb:'000000' } };
 const XLSX_STYLES = {
   header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
   section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
@@ -2593,7 +2593,7 @@ function applyMsetclHeaderBanner(ws, colCount) {
       font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: r===0?14:12, color:{rgb:'000000'} },
       fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
       alignment: { horizontal: r===0?'center':'left', vertical:'center', wrapText:true },
-      border: r===3 ? {bottom:{style:'medium',color:{rgb:'9AA3AF'}}} : undefined
+      border: r===3 ? {bottom:{style:'medium',color:{rgb:'000000'}}} : undefined
     };
     // heights are computed by autoRowHeights (content-based, print-ready)
   }
@@ -2664,7 +2664,7 @@ function installLuxeXlsx(X) {
   X.__luxeReady = true;
 }
 
-const LUXE_GRID = { style:'thin', color:{ rgb:'D7DEEA' } };
+const LUXE_GRID = { style:'thin', color:{ rgb:'000000' } };
 const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right:LUXE_GRID };
 // Exact column widths from the approved edited sheet (print-ready).
 const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
@@ -2689,14 +2689,16 @@ function autoRowHeights(ws, defaultFontSz=12, mins){
       const w = mi ? mi.w : colW(c);
       const sz = (cell.s && cell.s.font && cell.s.font.sz) || defaultFontSz;
       if (sz > maxSz) maxSz = sz;
-      const cpl = Math.max(4, Math.floor(w * (11/sz) * 1.85));
+      // condensed Arial fits ~1.5 chars per width-unit at size 11 (conservative
+      // so wrapped text is never cropped — matches Google-Sheets-style auto fit)
+      const cpl = Math.max(3, Math.floor(w * (11/sz) * 1.5));
       let lines = 0;
       String(cell.v).split('\n').forEach(seg => lines += Math.max(1, Math.ceil((seg.length||1)/cpl)));
       const spanned = mi ? mi.rows : 1;
       const perRow = Math.ceil(lines / spanned);
       if (perRow > maxLines) maxLines = perRow;
     }
-    let h = Math.min(200, Math.max(16, Math.round(maxLines * (maxSz * 1.4) + 6)));
+    let h = Math.min(400, Math.max(18, Math.round(maxLines * (maxSz * 1.55) + 8)));
     // Fixed rows keep at least the approved-sheet height, but still expand to wrap
     if (mins && mins[r] != null) h = Math.max(h, mins[r]);
     rowsArr[r] = Object.assign({}, rowsArr[r], { hpt: h });
@@ -4292,7 +4294,7 @@ function sectionItemTableRows(key) {
     rows.push(tr);
     // Amount-in-words line for the section, matching the official format
     const wr = new Array(headers.length).fill('');
-    wr[2] = 'Amount in Words: ' + toWords(Math.round(sum.total)) + ' Rupees Only';
+    wr[2] = (sum.spares ? 'Total Amount (including Spares) in Words: ' : 'Amount in Words: ') + toWords(Math.round(sum.total)) + ' Rupees Only';
     rows.push(wr);
   }
   return rows;
@@ -4431,8 +4433,11 @@ async function exportEstimateExcel() {
       abs['!merges'].push({s:{r:ri,c:4},e:{r:ri,c:A_COLS-1}});
     } else {
       abs['!merges'].push({s:{r:ri,c:1},e:{r:ri,c:A_COLS-2}});   // PARTICULARS B:K
+      // Particulars left-aligned (unless it's a serial-less sub-total that reads better centred)
+      const pd = XLSXmod.utils.encode_cell({r:ri,c:1});
+      if (abs[pd]) { abs[pd].s = abs[pd].s || {}; abs[pd].s.alignment = Object.assign({vertical:'center', wrapText:true}, abs[pd].s.alignment, {horizontal:'left'}); }
       const ld=XLSXmod.utils.encode_cell({r:ri,c:A_COLS-1});
-      if (abs[ld] && typeof abs[ld].v==='number'){ abs[ld].s=abs[ld].s||{}; abs[ld].s.numFmt=rupeeNumFmt(abs[ld].v); abs[ld].s.alignment={horizontal:'right',vertical:'center'}; }
+      if (abs[ld] && typeof abs[ld].v==='number'){ abs[ld].s=abs[ld].s||{}; abs[ld].s.numFmt=rupeeNumFmt(abs[ld].v); abs[ld].s.alignment={horizontal:'center',vertical:'center'}; }
     }
   }
   aSig.merges.forEach(m=>abs['!merges'].push(m));
@@ -8701,9 +8706,9 @@ function renderFinalEstimatePage(){
               <option value="rm" ${(b?b.estimateType:FE.estimateType)==='rm'?'selected':''}>R&M (stops at Sub Total A)</option>
               <option value="amc" ${(b?b.estimateType:FE.estimateType)==='amc'?'selected':''}>AMC (amount limit = total)</option>
             </select></label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.addCharge&&b.addCharge.supply==='yes':FE.acSupply)?'checked':''} onchange="FE.acSupply=this.checked; if(FE.baseEstimate){FE.baseEstimate.addCharge=FE.baseEstimate.addCharge||{};FE.baseEstimate.addCharge.supply=this.checked?'yes':'no';} feRerender()"> AC · Supply</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.addCharge&&b.addCharge.project==='yes':FE.acProject)?'checked':''} onchange="FE.acProject=this.checked; if(FE.baseEstimate){FE.baseEstimate.addCharge=FE.baseEstimate.addCharge||{};FE.baseEstimate.addCharge.project=this.checked?'yes':'no';} feRerender()"> AC · ETC</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.supplySpares:FE.supplySpares)?'checked':''} onchange="FE.supplySpares=this.checked; if(FE.baseEstimate) FE.baseEstimate.supplySpares=this.checked; feRerender()"> Supply Spares @ 3%</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.addCharge&&b.addCharge.supply==='yes':FE.acSupply)?'checked':''} onchange="FE.acSupply=this.checked; if(FE.baseEstimate){FE.baseEstimate.addCharge=FE.baseEstimate.addCharge||{};FE.baseEstimate.addCharge.supply=this.checked?'yes':'no';} renderFinalEstimatePage()"> AC · Supply</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.addCharge&&b.addCharge.project==='yes':FE.acProject)?'checked':''} onchange="FE.acProject=this.checked; if(FE.baseEstimate){FE.baseEstimate.addCharge=FE.baseEstimate.addCharge||{};FE.baseEstimate.addCharge.project=this.checked?'yes':'no';} renderFinalEstimatePage()"> AC · ETC</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.supplySpares:FE.supplySpares)?'checked':''} onchange="FE.supplySpares=this.checked; if(FE.baseEstimate) FE.baseEstimate.supplySpares=this.checked; renderFinalEstimatePage()"> Supply Spares @ 3%</label>
           <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${(b?b.trLineMode:FE.trLine)?'checked':''} onchange="FE.trLine=this.checked; if(FE.baseEstimate) FE.baseEstimate.trLineMode=this.checked; feRerender()"> Tr. Line (Land & Comp.)</label>
           <label class="text-sm">Division: <input type="text" value="${escapeHtml((b&&b.division)||FE.division||'')}" oninput="FE.division=this.value; if(FE.baseEstimate) FE.baseEstimate.division=this.value" style="width:220px"></label>
         </div>
