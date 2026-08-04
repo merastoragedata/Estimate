@@ -2629,6 +2629,50 @@ let _sheetJSPromise = null;
 // number formats). The stock community SheetJS build silently discards
 // every `.s` style on write, which is why styled exports never appeared.
 // Reading uploaded .xlsx still works (this is a superset of SheetJS). ──
+let _fflate = null;
+function ensureFflate() {
+  if (_fflate) return Promise.resolve(_fflate);
+  if (window.fflate) { _fflate = window.fflate; return Promise.resolve(_fflate); }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+    s.onload = () => { _fflate = window.fflate; resolve(_fflate); };
+    s.onerror = () => reject(new Error('Could not load zip library'));
+    document.head.appendChild(s);
+  });
+}
+// Write a styled workbook, injecting freeze panes into the sheet XML
+// (xlsx-js-style can't emit them itself). Falls back to a plain write.
+async function writeXlsxWithFreeze(wb, filename) {
+  const X = await ensureSheetJS();
+  const freezeBySheet = {};
+  wb.SheetNames.forEach((nm, i) => { const ws = wb.Sheets[nm]; if (ws && ws['!freeze'] && ws['!freeze'].ySplit) freezeBySheet[i+1] = ws['!freeze'].ySplit; });
+  if (!Object.keys(freezeBySheet).length) { X.writeFile(wb, filename, {cellStyles:true}); return; }
+  try {
+    const buf = X.write(wb, {type:'array', bookType:'xlsx', cellStyles:true});
+    const fz = await ensureFflate();
+    const files = fz.unzipSync(new Uint8Array(buf));
+    Object.keys(files).forEach(path => {
+      const m = path.match(/xl\/worksheets\/sheet(\d+)\.xml$/);
+      if (!m) return;
+      const ySplit = freezeBySheet[+m[1]];
+      if (!ySplit) return;
+      let xml = fz.strFromU8(files[path]);
+      const pane = `<sheetView showGridLines="1" workbookViewId="0"><pane ySplit="${ySplit}" topLeftCell="A${ySplit+1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${ySplit+1}" sqref="A${ySplit+1}"/></sheetView>`;
+      if (/<sheetViews>[\s\S]*?<\/sheetViews>/.test(xml)) xml = xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/, `<sheetViews>${pane}</sheetViews>`);
+      else xml = xml.replace(/(<dimension[^>]*\/>)/, `$1<sheetViews>${pane}</sheetViews>`);
+      files[path] = fz.strToU8(xml);
+    });
+    const out = fz.zipSync(files, {level:6});
+    const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  } catch(err) {
+    console.error('freeze-pane injection failed, writing plain file:', err);
+    X.writeFile(wb, filename, {cellStyles:true});
+  }
+}
 function ensureSheetJS() {
   if (window.XLSX && window.XLSX.__luxeReady) return Promise.resolve(window.XLSX);
   if (_sheetJSPromise) return _sheetJSPromise;
@@ -4255,7 +4299,7 @@ function sectionItemTableRows(key) {
   const hasFI  = cfg.hasFI && (rates.freightInsurance||0) > 0;
   const hasGST = (rates.gst||0) > 0;
   const headers = ['Sr.No.','Material/Service No','Description','UoM','Quantity',
-    'Exworks Price (Rs.)','Total Ex-works Price excl. T&D (Rs.)'];
+    'Exworks Price (₹)','Total Ex-works Price excl. T&D (₹)'];
   if (acApplied) headers.push('Extra Charge (%)','Total incl. Additional Charge');
   if (hasLC) headers.push('Labour Cess @ '+rates.labourCess+'%','Ex-Works + Labour Cess');
   if (hasFI) headers.push('Freight & Insurance @ '+rates.freightInsurance+'%','(Ex-Works+LC) + F&I');
@@ -4327,7 +4371,7 @@ function abstractSheetRows(includeBreakdown=false) {
   const supplyPr = pmoPrForSection(e, ['supply']);
   const projectPr = pmoPrForSection(e, ['project','etc']);
   const omPr = pmoPrForSection(e, ['o&m','om','service']);
-  const rows = [['Sr.No.','PARTICULARS','AMOUNT in Rs.']];
+  const rows = [['Sr.No.','PARTICULARS','AMOUNT (₹)']];
   // Sections with no items contribute nothing; serials renumber sequentially.
   const hasSupply = sectionConfig('supply').items.length + sectionConfig('nonsor_supply').items.length > 0;
   const hasProject = sectionConfig('project').items.length > 0;
@@ -4463,121 +4507,122 @@ async function exportEstimateExcel() {
     const prNo = (prMatch && prMatch.number) ? prMatch.number : '';
     const header = estimateHeaderRows(e, prNo);
     const itemRows = sectionItemTableRows(key);
-    // Audit-style totals summary (mirrors the webpage section totals box)
-    const colCount0 = itemRows[0].length;
+    const N = itemRows[0].length;
+    const H = itemRows[0];
+    // item data rows only (drop the built-in TOTAL and amount-in-words rows)
+    const items = itemRows.slice(1).filter(r => String(r[2])!=='TOTAL' && !/^amount in words|^total amount/i.test(String(r[2]||'')));
     const t = sectionTotalsCalc(key);
     const rateSet = effectiveRates();
-    const sumLines = [['', 'TOTALS SUMMARY', '']];
-    const pushSum = (lbl, val) => { const a = new Array(colCount0).fill(''); a[2] = lbl; a[colCount0-2] = val; sumLines.push(a); };
-    pushSum('Base Cost (Total Ex-works excl. T&D)', t.base);
-    if (t.ac) pushSum('Additional Charge', t.ac);
-    if ((rateSet.labourCess||0) > 0) pushSum('Labour Cess @ '+rateSet.labourCess+'%', t.lc);
-    if (t.fi) pushSum('Freight & Insurance @ '+rateSet.freightInsurance+'%', t.fi);
-    if ((rateSet.gst||0) > 0) pushSum('GST @ '+rateSet.gst+'%', t.gst);
-    if (t.spares) pushSum('Supply Spares @ 3%', t.spares);
-    pushSum((sectionConfig(key).title || 'Section') + ' Total' + (t.spares ? ' (incl. Spares)' : ''), t.total);
-    // fix the summary header row to a full 3-cell shape
-    sumLines[0] = new Array(colCount0).fill(''); sumLines[0][2] = 'TOTALS SUMMARY';
-    const blankRow = new Array(colCount0).fill('');
-    const _sigStart = header.length + 1 + itemRows.length + 1 + sumLines.length;
-    const _sig = signatoryBlock(e, colCount0, _sigStart);
-    const rows = header.concat([[name + (prNo ? '   —   PR No.: ' + prNo : '')]], itemRows, [blankRow], sumLines, _sig.rows);
+    const descCol = 2, valueCol = N - 2, statusCol = N - 1;   // last col = SoR status
+    const mk = () => new Array(N).fill('');
+
+    // TOTAL row — title only (merged Description→GST), grand total at value col. No column-wise totals.
+    const totalRow = mk(); totalRow[descCol] = 'TOTAL'; totalRow[valueCol] = t.total;
+
+    // Charge calculations (these ARE the figures the column totals would show)
+    const calc = [];
+    const addCalc = (lbl,val)=>{ const a=mk(); a[0]=lbl; a[valueCol]=val; calc.push(a); };
+    addCalc('Base Cost (Total Ex-works excl. T&D)', t.base);
+    if (t.ac) addCalc('Additional Charge @ '+rateSet.additionalCharge+'%', t.ac);
+    if ((rateSet.labourCess||0)>0) addCalc('Labour Cess @ '+rateSet.labourCess+'%', t.lc);
+    if (t.fi) addCalc('Freight & Insurance @ '+rateSet.freightInsurance+'%', t.fi);
+    if ((rateSet.gst||0)>0) addCalc('GST @ '+rateSet.gst+'%', t.gst);
+    if (t.spares) addCalc('Add: Supply Spares @ 3%', t.spares);
+    addCalc((sectionConfig(key).title||'Section')+' Total'+(t.spares?' (including Spares)':''), t.total);
+
+    const wordsR = mk();
+    wordsR[0] = (t.spares ? 'Total Amount (including Spares) in Words: ' : 'Amount in Words: ') + toWords(Math.round(t.total)) + ' Rupees Only';
+
+    // Assemble in the approved order
+    let R = header.slice();
+    const titleIdx = R.length; R.push([name + (prNo ? '   —   PR No.: ' + prNo : '')]);
+    const colHdrIdx = R.length; R.push(H);
+    const itemStart = R.length; items.forEach(r=>R.push(r));
+    const itemEnd = R.length - 1;
+    const totalIdx = R.length; R.push(totalRow);
+    R.push(mk());                                   // blank (A-L) after TOTAL
+    const calcStart = R.length; calc.forEach(r=>R.push(r));
+    const calcEnd = R.length - 1;
+    R.push(mk());                                   // blank (A-L) before amount-in-words
+    const wordsIdx = R.length; R.push(wordsR);
+    const sigStart = R.length;                      // signatoryBlock adds 2 blank rows then title+office
+    const _sig = signatoryBlock(e, N, sigStart);
+    _sig.rows.forEach(r=>R.push(r));
+    const rows = R;
+
     const ws = XLSXmod.utils.aoa_to_sheet(rows);
-    applySmartColWidths(ws, rows);
-    // website width editor (Final Estimate) overrides computed widths
-    if (typeof FE!=='undefined' && FE.attachRaw && FE.colWidths && FE.colWidths[key] && FE.colWidths[key].length===itemRows[0].length) {
-      ws['!cols'] = FE.colWidths[key].map(w=>({wch:Math.max(6, Math.round(+w||10))}));
-    }
-    const sumStart = header.length + 1 + itemRows.length + 1;   // first summary row index
+    ws['!noZebra'] = true;                           // zebra applied to items only, below
+
+    // ---- styles ----
     const styleMap = {};
-    styleMap[0] = 'section';
-    styleMap[header.length] = 'section';
-    styleMap[header.length+1] = 'header';
-    styleMap[header.length + itemRows.length - 1] = 'total';   // TOTAL row
-    styleMap[header.length + itemRows.length] = 'subtle';      // Amount-in-words row
-    styleMap[sumStart] = 'section';                            // "TOTALS SUMMARY" header
-    styleMap[sumStart + sumLines.length - 1] = 'total';        // grand total line
-    for (let si = 1; si < sumLines.length - 1; si++) styleMap[sumStart + si] = 'subtotal';
-    applyRowStyles(ws, styleMap, itemRows[0].length);
-    // ₹ (Indian grouping) on amount columns only — not Sr / Qty
-    for (let rr = header.length+2; rr < rows.length; rr++) {
-      for (let cc = 5; cc < itemRows[0].length; cc++) {
-        const ad = XLSXmod.utils.encode_cell({r:rr, c:cc});
-        if (ws[ad] && typeof ws[ad].v === 'number') { ws[ad].s = ws[ad].s||{}; ws[ad].s.numFmt = rupeeNumFmt(ws[ad].v); }
-      }
+    styleMap[colHdrIdx] = 'header';
+    styleMap[totalIdx] = 'total';
+    styleMap[calcEnd] = 'total';                     // section grand-total row highlighted
+    for (let i=calcStart; i<calcEnd; i++) styleMap[i] = 'subtotal';
+    applyRowStyles(ws, styleMap, N);
+    { const ad=XLSXmod.utils.encode_cell({r:titleIdx,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.section); }
+
+    // zebra + description-left on item rows only
+    for (let i=itemStart;i<=itemEnd;i++){
+      if ((i-itemStart)%2===1) for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
+      const dd=XLSXmod.utils.encode_cell({r:i,c:descCol}); if(ws[dd]){ ws[dd].s=ws[dd].s||{}; ws[dd].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[dd].s.alignment,{horizontal:'left'}); }
     }
-    applyMsetclHeaderBanner(ws, itemRows[0].length);
-    // Merge the bottom rows so long text spans full width (no wrapping in a
-    // narrow cell) and summary label/value read cleanly with values at right.
-    const colCount = itemRows[0].length;
+
+    // ₹ Indian grouping on the value column (TOTAL + calc rows) and item amount cols
+    const fmtAmt = (r,c)=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad] && typeof ws[ad].v==='number'){ ws[ad].s=ws[ad].s||{}; ws[ad].s.numFmt=rupeeNumFmt(ws[ad].v); ws[ad].s.alignment=Object.assign({vertical:'center',horizontal:'center'},ws[ad].s.alignment); } };
+    for (let r=itemStart;r<=itemEnd;r++) for (let c=5;c<N;c++) fmtAmt(r,c);
+    fmtAmt(totalIdx, valueCol);
+    for (let i=calcStart;i<=calcEnd;i++) fmtAmt(i, valueCol);
+
+    // words row style (bold italic sz16, left, fill)
+    { const ad=XLSXmod.utils.encode_cell({r:wordsIdx,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.words); }
+
+    // ---- merges ----
     ws['!merges'] = ws['!merges'] || [];
-    const wordsRow = header.length + itemRows.length;              // Amount-in-words row
-    ws['!merges'].push({s:{r:header.length,c:0}, e:{r:header.length,c:colCount-1}});  // section-title banner
-    ws['!merges'].push({s:{r:wordsRow,c:2}, e:{r:wordsRow,c:colCount-1}});
-    ws['!merges'].push({s:{r:sumStart,c:2}, e:{r:sumStart,c:colCount-1}});  // "TOTALS SUMMARY" header
-    for (let si=1; si<sumLines.length; si++){
-      const r = sumStart + si;
-      ws['!merges'].push({s:{r,c:2}, e:{r,c:colCount-3}});          // label spans
-      ws['!merges'].push({s:{r,c:colCount-2}, e:{r,c:colCount-1}}); // value (right)
+    const M = (r,c1,c2)=> ws['!merges'].push({s:{r,c:c1}, e:{r,c:c2}});
+    M(titleIdx, 0, N-1);                              // section title A-L
+    // TOTAL row: "TOTAL" title merged Description→(value-1); grand total merged value→status
+    M(totalIdx, descCol, valueCol-1);
+    M(totalIdx, valueCol, statusCol);
+    { const ad=XLSXmod.utils.encode_cell({r:totalIdx,c:descCol}); if(ws[ad]) ws[ad].s.alignment=Object.assign({},ws[ad].s.alignment,{horizontal:'center',vertical:'center'}); }
+    M(totalIdx+1, 0, N-1);                            // blank after TOTAL
+    for (let i=calcStart;i<=calcEnd;i++){             // calc rows: label A→(value-1), value→status
+      M(i, 0, valueCol-1); M(i, valueCol, statusCol);
+      const ad=XLSXmod.utils.encode_cell({r:i,c:0}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[ad].s.alignment,{horizontal:'right'}); }
     }
-    // explicit alignment on the merged bottom cells
-    const setAlign = (r, c, horizontal) => { const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.alignment=Object.assign({}, ws[ad].s.alignment, {vertical:'center', horizontal, wrapText:true}); } };
-    setAlign(wordsRow, 2, 'left');
-    for (let si=1; si<sumLines.length; si++){ setAlign(sumStart+si, 2, 'left'); setAlign(sumStart+si, colCount-2, 'right'); }
-    // Signatory footer: merges + bold, centered blocks
+    M(calcEnd+1, 0, N-1);                             // blank before amount-in-words
+    M(wordsIdx, 0, N-1);                              // amount in words A-L
+    M(sigStart, 0, N-1); M(sigStart+1, 0, N-1);       // two blank rows above signatories
     _sig.merges.forEach(m=> ws['!merges'].push(m));
+
+    // signatory rows: centered, sz16, NO border
     [_sig.titleRowIdx, _sig.officeRowIdx].forEach((r, idx)=>{
-      [0,3,7,10].forEach(c=>{
-        const ad = XLSXmod.utils.encode_cell({r, c});
-        if (ws[ad]) { ws[ad].s = Object.assign({}, ws[ad].s, {
-          font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'000000'}},
-          alignment:{horizontal:'center', vertical:'center', wrapText:true} }); }
-      });
+      [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad]) ws[ad].s=Object.assign({}, ws[ad].s, {
+        font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'000000'}},
+        alignment:{horizontal:'center', vertical:'center', wrapText:true}, border:{} }); });
     });
-    // Content-fitted widths: each column sizes to its longest value (no wrap),
-    // so Freight & Insurance tightens to its values and the amount columns are
-    // wide enough to show every figure (prevents '###').
+
+    applyMsetclHeaderBanner(ws, N);
+
+    // ---- widths (content-fitted; amount cols sized to formatted value, no ###) ----
     applySmartColWidths(ws, rows);
     ws['!cols'] = ws['!cols'] || [];
-    {
-      const H0 = itemRows[0].map(x=>String(x||'').toLowerCase());
-      const N = itemRows[0].length;
-      // amount columns (index >= 5): width from the widest FORMATTED value
-      for (let ci=5; ci<N; ci++){
-        let maxLen = 6;
-        for (let r=0; r<rows.length; r++){
-          const ad = XLSXmod.utils.encode_cell({r, c:ci});
-          const cell = ws[ad];
-          if (cell && typeof cell.v === 'number') {
-            const txt = '₹' + fmtNum(cell.v);           // matches the ₹ + grouping shown
-            if (txt.length > maxLen) maxLen = txt.length;
-          }
-        }
-        ws['!cols'][ci] = { wch: (ws['!cols'][ci] && ws['!cols'][ci].wch ? Math.max(ws['!cols'][ci].wch, maxLen+2) : maxLen+2) };
-      }
-      ws['!cols'].forEach((col, ci)=>{
-        const head = H0[ci] || '';
-        if (/freight|f&i|insurance/.test(head)) col.wch = Math.max(9, col.wch||10);        // tight but fits
-        if (/total amount including gst|incl.*gst|total.*gst/.test(head)) col.wch = Math.max(col.wch||14, 16);
-        if (/description/.test(head)) col.wch = Math.max(col.wch||20, 34);
-      });
+    for (let ci=5; ci<N; ci++){
+      let maxLen = 6;
+      for (let r=0;r<rows.length;r++){ const ad=XLSXmod.utils.encode_cell({r,c:ci}); const cell=ws[ad]; if(cell && typeof cell.v==='number'){ const txt='₹'+fmtNum(cell.v); if(txt.length>maxLen) maxLen=txt.length; } }
+      ws['!cols'][ci] = { wch: (ws['!cols'][ci]&&ws['!cols'][ci].wch?Math.max(ws['!cols'][ci].wch,maxLen+2):maxLen+2) };
     }
-    // Description column (index 2) is left-aligned for item rows (edited sheet)
-    for (let ri = header.length+2; ri < header.length + itemRows.length - 1; ri++){
-      const ad = XLSXmod.utils.encode_cell({r:ri, c:2});
-      if (ws[ad]) { ws[ad].s = ws[ad].s || {}; ws[ad].s.alignment = Object.assign({vertical:'center', wrapText:true}, ws[ad].s.alignment, {horizontal:'left'}); }
-    }
-    // Amount-in-words row: bold italic sz16, left, fill (edited sheet)
-    { const ad = XLSXmod.utils.encode_cell({r:wordsRow, c:2});
-      if (ws[ad]) ws[ad].s = Object.assign({}, XLSX_STYLES.words); }
-    // Freeze the banner + column-header rows so they stay visible when scrolling
-    ws['!freeze'] = { xSplit:0, ySplit:header.length+2, topLeftCell:XLSXmod.utils.encode_cell({r:header.length+2,c:0}), activePane:'bottomLeft', state:'frozen' };
-    const secMins = {0:34.5, 1:26.2, 2:26.2, 3:26.2, 4:36.8};   // banner rows (edited sheet)
-    secMins[header.length+1] = 67.5;                             // column-header row (wrapped headers)
-    secMins[header.length + itemRows.length - 1] = 28.5;         // TOTAL
-    secMins[wordsRow] = 38.2;                                    // Amount in Words
-    secMins[_sig.titleRowIdx] = 48; secMins[_sig.officeRowIdx] = 48;
-    autoRowHeights(ws, 12, secMins);
+    ws['!cols'].forEach((col,ci)=>{ const head=String(H[ci]||'').toLowerCase();
+      if(/freight|f&i|insurance/.test(head)) col.wch=Math.max(9,col.wch||10);
+      if(/total amount including gst|incl.*gst|total.*gst/.test(head)) col.wch=Math.max(col.wch||14,16);
+      if(/description/.test(head)) col.wch=Math.max(col.wch||20,34);
+    });
+
+    // ---- freeze header rows + auto row heights ----
+    ws['!freeze'] = { xSplit:0, ySplit:colHdrIdx+1, topLeftCell:XLSXmod.utils.encode_cell({r:colHdrIdx+1,c:0}), activePane:'bottomLeft', state:'frozen' };
+    const secMins = {0:34.5,1:26.2,2:26.2,3:26.2}; secMins[titleIdx]=36.8; secMins[colHdrIdx]=67.5;
+    secMins[wordsIdx]=38.2; secMins[_sig.titleRowIdx]=48; secMins[_sig.officeRowIdx]=48;
+    autoRowHeights(ws, 14, secMins);
     XLSXmod.utils.book_append_sheet(wb, ws, sanitizeSheetName(name));
   });
 
@@ -4613,19 +4658,27 @@ async function exportEstimateExcel() {
     XLSXmod.utils.book_append_sheet(wb, ws, 'NON SOR Items');
   }
 
-  // Final sheet: PMO / PR Numbers — only if any entries are filled
+  // Final sheet: PMO / PR Numbers — formatted to match the approved sheet
   const filledPmoPr = pmoPrAllFilled(e);
   if (filledPmoPr.length) {
     const header = estimateHeaderRows(e, '');
     const rows = header.concat([['PMO / PR Numbers']], [['Label','Number']], filledPmoPr.map(p=>[p.label, p.number]));
     const ws = XLSXmod.utils.aoa_to_sheet(rows);
-    applySmartColWidths(ws, rows);
+    ws['!noZebra'] = true;
     const styleMap = {};
-    styleMap[0] = 'section';
     styleMap[header.length] = 'section';
     styleMap[header.length+1] = 'header';
     applyRowStyles(ws, styleMap, 2);
+    { const ad=XLSXmod.utils.encode_cell({r:header.length,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.section); }
+    // zebra on alternate data rows
+    const dataStart = header.length+2;
+    for (let i=dataStart; i<rows.length; i++){
+      if ((i-dataStart)%2===1) for (let c=0;c<2;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
+    }
     applyMsetclHeaderBanner(ws, 2);
+    ws['!cols'] = [{wch:75.29},{wch:20}];
+    ws['!freeze'] = { xSplit:0, ySplit:dataStart, topLeftCell:XLSXmod.utils.encode_cell({r:dataStart,c:0}), activePane:'bottomLeft', state:'frozen' };
+    autoRowHeights(ws, 14, {0:34.5,1:26.2,2:26.2,3:26.2,[header.length]:36.8,[header.length+1]:28.5});
     XLSXmod.utils.book_append_sheet(wb, ws, 'PMO-PR Numbers');
   }
 
@@ -4635,7 +4688,7 @@ async function exportEstimateExcel() {
     applySmartColWidths(wsRaw, FE.rawGrid);
     XLSXmod.utils.book_append_sheet(wb, wsRaw, sanitizeSheetName(FE.rawSheetLabel||'ZEST03'));
   }
-  XLSXmod.writeFile(wb, `${(e.name||'Estimate').replace(/[^a-z0-9]+/gi,'_')}.xlsx`, {cellStyles: true});
+  await writeXlsxWithFreeze(wb, `${(e.name||'Estimate').replace(/[^a-z0-9]+/gi,'_')}.xlsx`);
   toast('Excel ready', 'ok');
 }
 
