@@ -2526,14 +2526,14 @@ function applySmartColWidths(ws, rows) {
 // Every fill uses patternType:'solid' (required for xlsx-js-style to render),
 // borders are explicit, and the header carries a gold underline accent. ──
 const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
-const _THIN = { style:'thin', color:{ rgb:'000000' } };
+const _THIN = { style:'hair', color:{ rgb:'000000' } };
 const _GOLD_EDGE = { style:'thin', color:{ rgb:'000000' } };
 const XLSX_STYLES = {
   header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
   section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
   total:    { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'E9EBEE'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_GOLD_EDGE,left:_THIN,right:_THIN,bottom:_THIN} },
   subtotal: { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, alignment:{vertical:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
-  subtle:   { font:{name:EXPORT_FONT, italic:true, color:{rgb:'000000'}, sz:12}, alignment:{vertical:'center', wrapText:true} },
+  subtle:   { font:{name:EXPORT_FONT, italic:true, color:{rgb:'000000'}, sz:14}, alignment:{vertical:'center', wrapText:true} },
   words:    { font:{name:EXPORT_FONT, bold:true, italic:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'F4F7FC'}}, alignment:{vertical:'center', horizontal:'left', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
   done:     { font:{name:EXPORT_FONT}, fill:{patternType:'solid', fgColor:{rgb:'E3F6EC'}} },
 };
@@ -2590,7 +2590,7 @@ function applyMsetclHeaderBanner(ws, colCount) {
     const addr = XLSX.utils.encode_cell({r, c:0});
     if (!ws[addr]) ws[addr] = {t:'s', v:''};
     ws[addr].s = {
-      font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: r===0?14:12, color:{rgb:'000000'} },
+      font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: 14, color:{rgb:'000000'} },
       fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
       alignment: { horizontal: r===0?'center':'left', vertical:'center', wrapText:true },
       border: r===3 ? {bottom:{style:'thin',color:{rgb:'000000'}}} : undefined
@@ -2691,7 +2691,7 @@ function installLuxeXlsx(X) {
   X.__luxeReady = true;
 }
 
-const LUXE_GRID = { style:'thin', color:{ rgb:'000000' } };
+const LUXE_GRID = { style:'hair', color:{ rgb:'000000' } };
 const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right:LUXE_GRID };
 // Exact column widths from the approved edited sheet (print-ready).
 const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
@@ -4502,8 +4502,10 @@ async function exportEstimateExcel() {
     const descCol = 2, valueCol = N - 2, statusCol = N - 1;   // last col = SoR status
     const mk = () => new Array(N).fill('');
 
-    // TOTAL row — title only (merged Description→GST), grand total at value col. No column-wise totals.
-    const totalRow = mk(); totalRow[descCol] = 'TOTAL'; totalRow[valueCol] = t.total;
+    // TOTAL row — title only (merged Description→GST), GST total at value col
+    // (this is the total WITHOUT spares; the spares-inclusive total appears in
+    // the calculations below).
+    const totalRow = mk(); totalRow[descCol] = 'TOTAL'; totalRow[valueCol] = (t.preSparesTotal!=null ? t.preSparesTotal : t.total);
 
     // Charge calculations (these ARE the figures the column totals would show)
     const calc = [];
@@ -4581,11 +4583,16 @@ async function exportEstimateExcel() {
     M(sigStart, 0, N-1); M(sigStart+1, 0, N-1);       // two blank rows above signatories
     _sig.merges.forEach(m=> ws['!merges'].push(m));
 
-    // signatory rows: centered, sz16, NO border
+    // signatory rows: centered, sz16, NO inner borders (outer box only)
+    const sigRows = [_sig.titleRowIdx-2, _sig.titleRowIdx-1, _sig.titleRowIdx, _sig.officeRowIdx];
+    sigRows.forEach((r)=>{ for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r,c}); if(!ws[ad]) ws[ad]={t:'s',v:''}; ws[ad].s=ws[ad].s||{};
+      const b={}; if(r===sigRows[0]) b.top={style:'thin',color:{rgb:'000000'}}; if(r===_sig.officeRowIdx) b.bottom={style:'thin',color:{rgb:'000000'}};
+      if(c===0) b.left={style:'thin',color:{rgb:'000000'}}; if(c===N-1) b.right={style:'thin',color:{rgb:'000000'}};
+      ws[ad].s.border=b; } });
     [_sig.titleRowIdx, _sig.officeRowIdx].forEach((r, idx)=>{
       [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad]) ws[ad].s=Object.assign({}, ws[ad].s, {
         font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'000000'}},
-        alignment:{horizontal:'center', vertical:'center', wrapText:true}, border:{} }); });
+        alignment:{horizontal:'center', vertical:'center', wrapText:true} }); });
     });
 
     applyMsetclHeaderBanner(ws, N);
@@ -4599,9 +4606,14 @@ async function exportEstimateExcel() {
       ws['!cols'][ci] = { wch: (ws['!cols'][ci]&&ws['!cols'][ci].wch?Math.max(ws['!cols'][ci].wch,maxLen+2):maxLen+2) };
     }
     ws['!cols'].forEach((col,ci)=>{ const head=String(H[ci]||'').toLowerCase();
+      if(ci===0) col.wch = 6;                                                       // Sr.No — narrow
+      if(/material\/service|material no|service no/.test(head)) col.wch=Math.max(col.wch||14,16);
+      if(/uom/.test(head)) col.wch=Math.max(col.wch||8,9);
+      if(/quantity|qty/.test(head)) col.wch=Math.max(col.wch||8,9);
       if(/freight|f&i|insurance/.test(head)) col.wch=Math.max(9,col.wch||10);
       if(/total amount including gst|incl.*gst|total.*gst/.test(head)) col.wch=Math.max(col.wch||14,16);
-      if(/description/.test(head)) col.wch=Math.max(col.wch||20,34);
+      if(/description/.test(head)) col.wch=Math.max(col.wch||20,42);                // wide, wraps → taller rows
+      if(/sor status|status/.test(head)) col.wch=Math.max(col.wch||10,12);
     });
 
     // ---- freeze header rows + auto row heights ----
