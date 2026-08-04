@@ -2527,7 +2527,7 @@ function applySmartColWidths(ws, rows) {
 // borders are explicit, and the header carries a gold underline accent. ──
 const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
 const _THIN = { style:'thin', color:{ rgb:'000000' } };
-const _GOLD_EDGE = { style:'medium', color:{ rgb:'000000' } };
+const _GOLD_EDGE = { style:'thin', color:{ rgb:'000000' } };
 const XLSX_STYLES = {
   header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
   section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
@@ -2593,7 +2593,7 @@ function applyMsetclHeaderBanner(ws, colCount) {
       font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: r===0?14:12, color:{rgb:'000000'} },
       fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
       alignment: { horizontal: r===0?'center':'left', vertical:'center', wrapText:true },
-      border: r===3 ? {bottom:{style:'medium',color:{rgb:'000000'}}} : undefined
+      border: r===3 ? {bottom:{style:'thin',color:{rgb:'000000'}}} : undefined
     };
     // heights are computed by autoRowHeights (content-based, print-ready)
   }
@@ -2644,34 +2644,10 @@ function ensureFflate() {
 // Write a styled workbook, injecting freeze panes into the sheet XML
 // (xlsx-js-style can't emit them itself). Falls back to a plain write.
 async function writeXlsxWithFreeze(wb, filename) {
+  // Freeze-pane injection was disabled: re-zipping the .xlsx stripped cell
+  // styles in Excel. We write the fully-styled file directly.
   const X = await ensureSheetJS();
-  const freezeBySheet = {};
-  wb.SheetNames.forEach((nm, i) => { const ws = wb.Sheets[nm]; if (ws && ws['!freeze'] && ws['!freeze'].ySplit) freezeBySheet[i+1] = ws['!freeze'].ySplit; });
-  if (!Object.keys(freezeBySheet).length) { X.writeFile(wb, filename, {cellStyles:true}); return; }
-  try {
-    const buf = X.write(wb, {type:'array', bookType:'xlsx', cellStyles:true});
-    const fz = await ensureFflate();
-    const files = fz.unzipSync(new Uint8Array(buf));
-    Object.keys(files).forEach(path => {
-      const m = path.match(/xl\/worksheets\/sheet(\d+)\.xml$/);
-      if (!m) return;
-      const ySplit = freezeBySheet[+m[1]];
-      if (!ySplit) return;
-      let xml = fz.strFromU8(files[path]);
-      const pane = `<sheetView showGridLines="1" workbookViewId="0"><pane ySplit="${ySplit}" topLeftCell="A${ySplit+1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${ySplit+1}" sqref="A${ySplit+1}"/></sheetView>`;
-      if (/<sheetViews>[\s\S]*?<\/sheetViews>/.test(xml)) xml = xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/, `<sheetViews>${pane}</sheetViews>`);
-      else xml = xml.replace(/(<dimension[^>]*\/>)/, `$1<sheetViews>${pane}</sheetViews>`);
-      files[path] = fz.strToU8(xml);
-    });
-    const out = fz.zipSync(files, {level:6});
-    const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
-  } catch(err) {
-    console.error('freeze-pane injection failed, writing plain file:', err);
-    X.writeFile(wb, filename, {cellStyles:true});
-  }
+  X.writeFile(wb, filename, {cellStyles:true});
 }
 function ensureSheetJS() {
   if (window.XLSX && window.XLSX.__luxeReady) return Promise.resolve(window.XLSX);
@@ -2704,6 +2680,13 @@ function installLuxeXlsx(X) {
   X.writeFile = function(wb, name, opts) {
     try { beautifyWorkbook(wb); } catch(e){ console.warn('beautify skipped', e); }
     return _writeFile(wb, name, Object.assign({ cellStyles: true }, opts || {}));
+  };
+  // Also wrap write() — some paths build a buffer directly; without this they
+  // would emit UNSTYLED cells (this is what stripped all formatting).
+  const _write = X.write.bind(X);
+  X.write = function(wb, opts) {
+    try { beautifyWorkbook(wb); } catch(e){ console.warn('beautify skipped', e); }
+    return _write(wb, Object.assign({ cellStyles: true }, opts || {}));
   };
   X.__luxeReady = true;
 }
@@ -2757,7 +2740,10 @@ function rupeeNumFmt(v){ return Number.isInteger(Number(v)) ? '"₹"#,##,##0' : 
 const LUXE_ZEBRA = 'F4F7FC';
 
 function beautifyWorkbook(wb) {
-  (wb.SheetNames || []).forEach(nm => beautifySheet(wb.Sheets[nm]));
+  (wb.SheetNames || []).forEach(nm => {
+    try { beautifySheet(wb.Sheets[nm]); }
+    catch(e){ console.warn('beautify skipped for sheet', nm, e); }
+  });
 }
 function beautifySheet(ws) {
   if (!ws || !ws['!ref']) return;
@@ -3870,6 +3856,7 @@ function renderAbstractTab(zone) {
         </div>
       </div>
     </div>
+    <div class="card" id="abstract-body"></div>
     <div class="collapse" id="pmo-pr-collapse" style="margin-bottom:16px">
       <div class="collapse-head" onclick="toggleCollapse(this)">
         <span class="fw-700 text-sm">🔖 PMO / PR Numbers ${pmoPrFilledCount(e)>0?`<span class="badge badge-gold" style="margin-left:6px">${pmoPrFilledCount(e)} entered</span>`:''}</span><span class="chev">▸</span>
@@ -3889,7 +3876,6 @@ function renderAbstractTab(zone) {
         </div>
       </div></div>
     </div>
-    <div class="card" id="abstract-body"></div>
   `;
   document.querySelectorAll('#abstract-etype-pills .radio-pill').forEach(el=>{
     el.classList.toggle('sel', el.dataset.type===e.estimateType);
@@ -4569,7 +4555,7 @@ async function exportEstimateExcel() {
     }
 
     // ₹ Indian grouping on the value column (TOTAL + calc rows) and item amount cols
-    const fmtAmt = (r,c)=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad] && typeof ws[ad].v==='number'){ ws[ad].s=ws[ad].s||{}; ws[ad].s.numFmt=rupeeNumFmt(ws[ad].v); ws[ad].s.alignment=Object.assign({vertical:'center',horizontal:'center'},ws[ad].s.alignment); } };
+    const fmtAmt = (r,c)=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad] && typeof ws[ad].v==='number'){ ws[ad].s=ws[ad].s||{}; ws[ad].s.numFmt=rupeeNumFmt(ws[ad].v); ws[ad].s.alignment=Object.assign({vertical:'center',horizontal:'center'},ws[ad].s.alignment); ws[ad].s.border=LUXE_BORDER_ALL; } };
     for (let r=itemStart;r<=itemEnd;r++) for (let c=5;c<N;c++) fmtAmt(r,c);
     fmtAmt(totalIdx, valueCol);
     for (let i=calcStart;i<=calcEnd;i++) fmtAmt(i, valueCol);
@@ -4688,7 +4674,7 @@ async function exportEstimateExcel() {
     applySmartColWidths(wsRaw, FE.rawGrid);
     XLSXmod.utils.book_append_sheet(wb, wsRaw, sanitizeSheetName(FE.rawSheetLabel||'ZEST03'));
   }
-  await writeXlsxWithFreeze(wb, `${(e.name||'Estimate').replace(/[^a-z0-9]+/gi,'_')}.xlsx`);
+  XLSXmod.writeFile(wb, `${(e.name||'Estimate').replace(/[^a-z0-9]+/gi,'_')}.xlsx`, {cellStyles: true});
   toast('Excel ready', 'ok');
 }
 
