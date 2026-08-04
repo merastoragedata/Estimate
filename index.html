@@ -2732,8 +2732,11 @@ function beautifySheet(ws) {
   let bodyIdx = 0;
   for (let r = range.s.r; r <= range.e.r; r++) {
     const isThemed = !!themed[r];
+    // Zebra ONLY on item rows — identified by a numeric serial in column A.
+    const c0 = ws[XLSX.utils.encode_cell({ r, c:0 })];
+    const isItemRow = c0 && (c0.t === 'n' || typeof c0.v === 'number');
     let stripe = false;
-    if (!isThemed && r > 0) { stripe = (bodyIdx % 2 === 1); bodyIdx++; }
+    if (!isThemed && isItemRow && !ws['!noZebra']) { stripe = (bodyIdx % 2 === 1); bodyIdx++; }
     for (let c = range.s.c; c <= range.e.c; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
       let cell = ws[addr];
@@ -2750,7 +2753,9 @@ function beautifySheet(ws) {
       if (isNum) {
         if (!s.alignment.horizontal) s.alignment.horizontal = 'center';   // edited sheet centres numbers
         if (!s.numFmt) s.numFmt = plainNumFmt(cell.v);   // no commas unless it's an amount
-        if (!wrapPreset) s.alignment.wrapText = true;
+        // shrink-to-fit prevents '###' when a value is wider than its column
+        if (!('shrinkToFit' in s.alignment)) s.alignment.shrinkToFit = true;
+        if (!wrapPreset) s.alignment.wrapText = false;   // numbers shrink, don't wrap
       } else {
         if (!s.alignment.horizontal) s.alignment.horizontal = 'center';   // text centred (description overridden to left)
         if (!wrapPreset) s.alignment.wrapText = true;
@@ -2853,8 +2858,10 @@ function doPrintAndCleanup(printRoot) {
   // reliable CSS override for it — but Android Chrome and desktop respect
   // this.)
   const _orient = ST._printOrient === 'portrait' ? 'portrait' : 'landscape';
+  const _portraitZoom = (_orient === 'portrait') ? `#PRINT_ROOT{ zoom:0.66; }` : '';
   _printStyleEl.textContent = `
-    @page { size: A4 ${_orient}; margin: 12.7mm; }
+    @page { size: ${_orient}; margin: 12.7mm; }
+    ${_portraitZoom}
     @media print {
       /* Force backgrounds/colours to print. Without this, when the user's
          print dialog has "Background graphics" OFF (Chrome's default in some
@@ -4522,7 +4529,34 @@ async function exportEstimateExcel() {
           alignment:{horizontal:'center', vertical:'center', wrapText:true} }); }
       });
     });
-    ws['!cols'] = COLW_SECTION.slice(0, colCount).map(w=>({wch:w}));
+    // Content-fitted widths: each column sizes to its longest value (no wrap),
+    // so Freight & Insurance tightens to its values and the amount columns are
+    // wide enough to show every figure (prevents '###').
+    applySmartColWidths(ws, rows);
+    ws['!cols'] = ws['!cols'] || [];
+    {
+      const H0 = itemRows[0].map(x=>String(x||'').toLowerCase());
+      const N = itemRows[0].length;
+      // amount columns (index >= 5): width from the widest FORMATTED value
+      for (let ci=5; ci<N; ci++){
+        let maxLen = 6;
+        for (let r=0; r<rows.length; r++){
+          const ad = XLSXmod.utils.encode_cell({r, c:ci});
+          const cell = ws[ad];
+          if (cell && typeof cell.v === 'number') {
+            const txt = '₹' + fmtNum(cell.v);           // matches the ₹ + grouping shown
+            if (txt.length > maxLen) maxLen = txt.length;
+          }
+        }
+        ws['!cols'][ci] = { wch: (ws['!cols'][ci] && ws['!cols'][ci].wch ? Math.max(ws['!cols'][ci].wch, maxLen+2) : maxLen+2) };
+      }
+      ws['!cols'].forEach((col, ci)=>{
+        const head = H0[ci] || '';
+        if (/freight|f&i|insurance/.test(head)) col.wch = Math.max(9, col.wch||10);        // tight but fits
+        if (/total amount including gst|incl.*gst|total.*gst/.test(head)) col.wch = Math.max(col.wch||14, 16);
+        if (/description/.test(head)) col.wch = Math.max(col.wch||20, 34);
+      });
+    }
     // Description column (index 2) is left-aligned for item rows (edited sheet)
     for (let ri = header.length+2; ri < header.length + itemRows.length - 1; ri++){
       const ad = XLSXmod.utils.encode_cell({r:ri, c:2});
@@ -4956,7 +4990,6 @@ async function exportEstimatePDF(){
 // ── shared print stylesheet (landscape, proper column proportions) ──
 function sharedPrintCSS() {
   return `
-    @page{ margin:12.7mm; }   /* orientation set dynamically in doPrintAndCleanup */
     #PRINT_ROOT{ font-family:'Arial Nova Cond','Arial Narrow',Arial,sans-serif; color:#000; }
     #PRINT_ROOT h2{ background:#D9DDE3; color:#000; padding:9px 14px; margin:0 0 10px; font-size:16px; font-weight:bold; border-radius:4px 4px 0 0; border-bottom:3px solid #9AA3AF; }
     #PRINT_ROOT h3{ color:#000; background:#E3E6EB; padding:6px 12px; margin:16px 0 8px; font-size:13px; font-weight:bold; border-left:4px solid #9AA3AF; }
