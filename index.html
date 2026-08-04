@@ -2529,11 +2529,12 @@ const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Ari
 const _THIN = { style:'thin', color:{ rgb:'D7DEEA' } };
 const _GOLD_EDGE = { style:'medium', color:{ rgb:'9AA3AF' } };
 const XLSX_STYLES = {
-  header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
-  section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:12}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
-  total:    { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'E9EBEE'}}, alignment:{vertical:'center'}, border:{top:_GOLD_EDGE,left:_THIN,right:_THIN,bottom:_THIN} },
-  subtotal: { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
-  subtle:   { font:{name:EXPORT_FONT, italic:true, color:{rgb:'54627E'}, sz:9}, alignment:{vertical:'center'} },
+  header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
+  section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
+  total:    { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'E9EBEE'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_GOLD_EDGE,left:_THIN,right:_THIN,bottom:_THIN} },
+  subtotal: { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, alignment:{vertical:'center', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
+  subtle:   { font:{name:EXPORT_FONT, italic:true, color:{rgb:'000000'}, sz:12}, alignment:{vertical:'center', wrapText:true} },
+  words:    { font:{name:EXPORT_FONT, bold:true, italic:true, color:{rgb:'000000'}, sz:16}, fill:{patternType:'solid', fgColor:{rgb:'F4F7FC'}}, alignment:{vertical:'center', horizontal:'left', wrapText:true}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
   done:     { font:{name:EXPORT_FONT}, fill:{patternType:'solid', fgColor:{rgb:'E3F6EC'}} },
 };
 const SECTION_TITLE_STYLE = { font:XLSX_STYLES.section.font, fill:XLSX_STYLES.section.fill, border:XLSX_STYLES.section.border, alignment:{vertical:'center', horizontal:'center', wrapText:false} };
@@ -2589,9 +2590,9 @@ function applyMsetclHeaderBanner(ws, colCount) {
     const addr = XLSX.utils.encode_cell({r, c:0});
     if (!ws[addr]) ws[addr] = {t:'s', v:''};
     ws[addr].s = {
-      font: { name:EXPORT_FONT, bold:true, sz: r===0?14:11, color:{rgb:'1F2937'} },
-      fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : {patternType:'solid', fgColor:{rgb:'EFF1F4'}},
-      alignment: { horizontal:'center', vertical:'center', wrapText:true },
+      font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: r===0?14:12, color:{rgb:'000000'} },
+      fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
+      alignment: { horizontal: r===0?'center':'left', vertical:'center', wrapText:true },
       border: r===3 ? {bottom:{style:'medium',color:{rgb:'9AA3AF'}}} : undefined
     };
     // heights are computed by autoRowHeights (content-based, print-ready)
@@ -2614,7 +2615,7 @@ function styleMsetclTitleRow(ws, colCount) {
   const addr = XLSX.utils.encode_cell({r:0, c:0});
   if (!ws[addr]) ws[addr] = {t:'s', v:''};
   ws[addr].s = {
-    font: { name:EXPORT_FONT, bold:true, sz:14, color:{rgb:'1F2937'} },
+    font: { name:EXPORT_FONT, bold:true, sz:14, color:{rgb:'000000'} },
     fill: { patternType:'solid', fgColor:{rgb:'D9DDE3'} },
     alignment: { horizontal:'center', vertical:'center', wrapText:false },
     border: { bottom:{style:'medium', color:{rgb:'9AA3AF'}} }
@@ -2741,17 +2742,17 @@ function beautifySheet(ws) {
       // remember whether wrap was explicitly set before we touch alignment
       const wrapPreset = s.alignment && s.alignment.hasOwnProperty('wrapText');
       s.border = s.border || LUXE_BORDER_ALL;
-      if (!s.font) s.font = { name:EXPORT_FONT, sz:10, color:{ rgb:'1F2937' } };
+      if (!s.font) s.font = { name:EXPORT_FONT, sz:14, color:{ rgb:'000000' } };
       else if (!s.font.name) s.font.name = EXPORT_FONT;
+      if (s.font && !s.font.sz) s.font.sz = 14;
       s.alignment = Object.assign({ vertical:'center' }, s.alignment || {});
       const isNum = cell.t === 'n' || typeof cell.v === 'number';
       if (isNum) {
-        if (!s.alignment.horizontal) s.alignment.horizontal = 'right';
+        if (!s.alignment.horizontal) s.alignment.horizontal = 'center';   // edited sheet centres numbers
         if (!s.numFmt) s.numFmt = plainNumFmt(cell.v);   // no commas unless it's an amount
-        if (!wrapPreset) s.alignment.wrapText = false;   // numbers never wrap
+        if (!wrapPreset) s.alignment.wrapText = true;
       } else {
-        // text cells wrap inside their (content-fitted) column width, so long
-        // descriptions stay readable WITHOUT widening the column
+        if (!s.alignment.horizontal) s.alignment.horizontal = 'center';   // text centred (description overridden to left)
         if (!wrapPreset) s.alignment.wrapText = true;
       }
       if (stripe && !s.fill) s.fill = { patternType:'solid', fgColor:{ rgb:LUXE_ZEBRA } };
@@ -2851,8 +2852,9 @@ function doPrintAndCleanup(printRoot) {
   // keyword. (iOS Safari may still ignore page size entirely — there is no
   // reliable CSS override for it — but Android Chrome and desktop respect
   // this.)
+  const _orient = ST._printOrient === 'portrait' ? 'portrait' : 'landscape';
   _printStyleEl.textContent = `
-    @page { size: A4 landscape; margin: 8mm 10mm; }
+    @page { size: A4 ${_orient}; margin: 12.7mm; }
     @media print {
       /* Force backgrounds/colours to print. Without this, when the user's
          print dialog has "Background graphics" OFF (Chrome's default in some
@@ -2862,6 +2864,9 @@ function doPrintAndCleanup(printRoot) {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
+      /* Fit-to-width: the table is width:100% and table-layout:fixed, so the
+         content always scales to the printable page width in either orientation. */
+      #PRINT_ROOT table { width:100% !important; }
       html, body { margin:0 !important; padding:0 !important; background:#fff !important; width:auto !important; }
       body::before, body::after { display:none !important; content:none !important; }
       body > *:not(#PRINT_ROOT) { display:none !important; }
@@ -4406,7 +4411,7 @@ async function exportEstimateExcel() {
     if (/^Amount in Words/i.test(lbl)) {
       const words = String(amt==null?'':amt);
       const ad = XLSXmod.utils.encode_cell({r:ri,c:0});
-      abs[ad] = {t:'s', v: words ? (lbl+': '+words) : lbl, s:{alignment:{horizontal:'left',vertical:'center',wrapText:true}, font:{name:EXPORT_FONT,bold:true,sz:10,color:{rgb:'1F2937'}}}};
+      abs[ad] = {t:'s', v: words ? (lbl+': '+words) : lbl, s:Object.assign({}, XLSX_STYLES.words)};
       const bd=XLSXmod.utils.encode_cell({r:ri,c:1}); if(abs[bd]) abs[bd].v='';
       const ld=XLSXmod.utils.encode_cell({r:ri,c:A_COLS-1}); if(abs[ld]) abs[ld].v='';
       abs['!merges'].push({s:{r:ri,c:0},e:{r:ri,c:A_COLS-1}});
@@ -4424,12 +4429,13 @@ async function exportEstimateExcel() {
     }
   }
   aSig.merges.forEach(m=>abs['!merges'].push(m));
-  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'1F2937'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); });
+  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); });
   applyRowStyles(abs, absStyleMap, A_COLS);
   applyMsetclHeaderBanner(abs, A_COLS);
   const absMins = {0:26.1, 1:26.2, 2:40.5, 3:26.2, 4:28.5};
   absMins[colHdrIdx] = 28.5;
   absMins[aSig.titleRowIdx] = 42; absMins[aSig.officeRowIdx] = 42;
+  abs['!freeze'] = { xSplit:0, ySplit:colHdrIdx+1, topLeftCell:XLSXmod.utils.encode_cell({r:colHdrIdx+1,c:0}), activePane:'bottomLeft', state:'frozen' };
   autoRowHeights(abs, 12, absMins);
   XLSXmod.utils.book_append_sheet(wb, abs, 'Abstract');
 
@@ -4512,11 +4518,21 @@ async function exportEstimateExcel() {
       [0,3,7,10].forEach(c=>{
         const ad = XLSXmod.utils.encode_cell({r, c});
         if (ws[ad]) { ws[ad].s = Object.assign({}, ws[ad].s, {
-          font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'1F2937'}},
+          font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'000000'}},
           alignment:{horizontal:'center', vertical:'center', wrapText:true} }); }
       });
     });
     ws['!cols'] = COLW_SECTION.slice(0, colCount).map(w=>({wch:w}));
+    // Description column (index 2) is left-aligned for item rows (edited sheet)
+    for (let ri = header.length+2; ri < header.length + itemRows.length - 1; ri++){
+      const ad = XLSXmod.utils.encode_cell({r:ri, c:2});
+      if (ws[ad]) { ws[ad].s = ws[ad].s || {}; ws[ad].s.alignment = Object.assign({vertical:'center', wrapText:true}, ws[ad].s.alignment, {horizontal:'left'}); }
+    }
+    // Amount-in-words row: bold italic sz16, left, fill (edited sheet)
+    { const ad = XLSXmod.utils.encode_cell({r:wordsRow, c:2});
+      if (ws[ad]) ws[ad].s = Object.assign({}, XLSX_STYLES.words); }
+    // Freeze the banner + column-header rows so they stay visible when scrolling
+    ws['!freeze'] = { xSplit:0, ySplit:header.length+2, topLeftCell:XLSXmod.utils.encode_cell({r:header.length+2,c:0}), activePane:'bottomLeft', state:'frozen' };
     const secMins = {0:34.5, 1:26.2, 2:26.2, 3:26.2, 4:36.8};   // banner rows (edited sheet)
     secMins[header.length+1] = 67.5;                             // column-header row (wrapped headers)
     secMins[header.length + itemRows.length - 1] = 28.5;         // TOTAL
@@ -4674,7 +4690,7 @@ function ensurePdfMake() {
   _pdfMakePromise.catch(() => { _pdfMakePromise = null; });
   return _pdfMakePromise;
 }
-const PDF_GOLD='#D9DDE3', PDF_GOLD_PALE='#EFF1F4', PDF_CREAM='#E9EBEE', PDF_TXT='#1F2937';
+const PDF_GOLD='#D9DDE3', PDF_GOLD_PALE='#EFF1F4', PDF_CREAM='#E9EBEE', PDF_TXT='#000000';
 // Strip EVERYTHING pdfmake's built-in Roboto font can't render:
 // emoji, ₹, special Unicode. Replaces common ones with text equivalents.
 function pdfText(v) {
@@ -4856,19 +4872,26 @@ function canPrint() { return !!(ST.printAllowed || isAdmin()); }
 function printHtmlTable(rows, opt){
   opt = opt || {};
   const head = rows[0], body = rows.slice(1);
+  const ncol = head.length;
+  // proportional widths so every table's columns line up identically
+  const widths = (opt.widths && opt.widths.length===ncol) ? opt.widths
+               : (ncol===3 ? [8,72,20] : null);
+  const colgroup = widths ? `<colgroup>${widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup>` : '';
   const cell = (c, i) => {
     const num = typeof c === 'number';
     const txt = num ? ((opt.rupeeCol && opt.rupeeCol(i) ? '₹' : '') + fmtNum(c)) : escapeHtml(String(c==null?'':c));
-    return `<td class="${num?'num':''}">${txt}</td>`;
+    const cls = num ? 'num' : (opt.leftCol && opt.leftCol(i) ? 'lft' : 'ctr');
+    return `<td class="${cls}">${txt}</td>`;
   };
-  return `<table><thead><tr>${head.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
+  return `<table class="${ncol>=10?'dense':''}" style="table-layout:fixed">${colgroup}<thead><tr>${head.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
     <tbody>${body.map(r=>{
       const isTot = r[2]==='TOTAL' || /Sub Total|TOTAL ESTIMATED|Total Estimated cost with Centages/.test(String(r[1]));
       return `<tr class="${isTot?'total-row':''}">${r.map((c,i)=>cell(c,i)).join('')}</tr>`;
     }).join('')}</tbody></table>`;
 }
-async function printEstimate(){
-  // print is available directly now (opens the browser print dialog)
+async function printEstimate(orientation){
+  if (!orientation) { askPrintOrientation(o => printEstimate(o)); return; }
+  ST._printOrient = orientation;
   const e = ST.currentEstimate;
   const root = document.createElement('div'); root.id = 'PRINT_ROOT';
   let html = `<style>${sharedPrintCSS()}</style>`;
@@ -4879,9 +4902,12 @@ async function printEstimate(){
   [['supply','Supply Material'],['project','ETC — Project Services'],['om','O&M Services'],['nonsor_supply','Non-SOR Materials'],['nonsor_om','Non-SOR Services']].forEach(([k,t])=>{
     if (!sectionConfig(k).items.length) return;
     const rows = sectionItemTableRows(k);
+    const n = rows[0].length;
+    const sw = new Array(n).fill(0); sw[2] = 30; const rest = (100-30)/(n-1);
+    for (let i=0;i<n;i++) if (i!==2) sw[i] = +rest.toFixed(2);
     const prNo = pmoPrForSection(e, (k==='supply'||k==='nonsor_supply')?['supply']:k==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
     // Header banner repeats at the top of every page, exactly like the sheets.
-    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=5})}${sigHtml}</div>`;
+    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=5, widths:sw, leftCol:(i)=>i===2})}${sigHtml}</div>`;
   });
   root.innerHTML = html;
   doPrintAndCleanup(root);
@@ -4896,7 +4922,23 @@ function printSignatoryHtml(e){
       <div>${escapeHtml(s.office||'')}</div></td>`).join('')
   }</tr></table>`;
 }
-async function feDownloadPrint(){ await feWithSyntheticAsync(()=> printEstimate()); }
+async function feDownloadPrint(orientation){
+  if (!orientation) { askPrintOrientation(o => feDownloadPrint(o)); return; }
+  await feWithSyntheticAsync(()=> printEstimate(orientation));
+}
+// Ask orientation before printing — Landscape is the default (wide estimate
+// sheets), Portrait offered for narrower prints. Chosen orientation drives
+// @page, with fit-to-width and normal margins.
+function askPrintOrientation(cb){
+  window.__printOrient = (o)=>{ closeModal(); window.__printOrient=null; cb(o); };
+  openModal(`
+    <div class="modal-head"><h3>Print orientation</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <p class="text-sm">Choose page orientation. The sheet is scaled to fit the page width with normal margins.</p>
+    <div class="flex gap-2 justify-end mt-2">
+      <button class="btn btn-ghost" onclick="window.__printOrient&&window.__printOrient('portrait')">Portrait</button>
+      <button class="btn btn-gold" onclick="window.__printOrient&&window.__printOrient('landscape')">Landscape (default)</button>
+    </div>`);
+}
 
 async function exportEstimatePDF(){
   const e = ST.currentEstimate; e.pmoPrEntries = e.pmoPrEntries || [];
@@ -4914,19 +4956,23 @@ async function exportEstimatePDF(){
 // ── shared print stylesheet (landscape, proper column proportions) ──
 function sharedPrintCSS() {
   return `
-    @page{ size: A4 landscape; margin:8mm 10mm; }
-    #PRINT_ROOT{ font-family:'Calibri',Arial,sans-serif; color:#1F2937; }
-    #PRINT_ROOT h2{ background:#D9DDE3; color:#1F2937; padding:9px 14px; margin:0 0 10px; font-size:16px; font-weight:bold; border-radius:4px 4px 0 0; border-bottom:3px solid #9AA3AF; }
-    #PRINT_ROOT h3{ color:#1F2937; background:#E3E6EB; padding:6px 12px; margin:16px 0 8px; font-size:13px; font-weight:bold; border-left:4px solid #9AA3AF; }
+    @page{ margin:12.7mm; }   /* orientation set dynamically in doPrintAndCleanup */
+    #PRINT_ROOT{ font-family:'Arial Nova Cond','Arial Narrow',Arial,sans-serif; color:#000; }
+    #PRINT_ROOT h2{ background:#D9DDE3; color:#000; padding:9px 14px; margin:0 0 10px; font-size:16px; font-weight:bold; border-radius:4px 4px 0 0; border-bottom:3px solid #9AA3AF; }
+    #PRINT_ROOT h3{ color:#000; background:#E3E6EB; padding:6px 12px; margin:16px 0 8px; font-size:13px; font-weight:bold; border-left:4px solid #9AA3AF; }
     #PRINT_ROOT table{ width:100%; border-collapse:collapse; margin-bottom:16px; table-layout:fixed; border:1px solid #B7BEC9; }
     #PRINT_ROOT th{
-      background:#EFF1F4; color:#1F2937; text-align:left; padding:7px 7px; font-size:11px; font-weight:bold;
+      background:#EFF1F4; color:#000; text-align:left; padding:7px 7px; font-size:11px; font-weight:bold;
       white-space:normal; word-break:break-word; vertical-align:middle; line-height:1.3;
       border:1px solid #B7BEC9; border-bottom:2px solid #9AA3AF;
     }
     /* full grid on every cell, matching the Excel exports */
     #PRINT_ROOT td{ padding:6px 7px; font-size:11px; line-height:1.35; border:1px solid #D5DAE1; word-wrap:break-word; overflow-wrap:break-word; vertical-align:top; }
-    #PRINT_ROOT td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #PRINT_ROOT td.num{ text-align:center; font-variant-numeric:tabular-nums; }
+    #PRINT_ROOT td.ctr{ text-align:center; }
+    #PRINT_ROOT td.lft{ text-align:left; }
+    #PRINT_ROOT thead{ display:table-header-group; }   /* repeat header row on every page */
+    #PRINT_ROOT td, #PRINT_ROOT th{ overflow-wrap:anywhere; }
     /* "dense" tables (many columns, e.g. item-level exports) still get a
        readable floor — never below 9.5px, the smallest size comfortably
        readable on a printed A4 page. */
@@ -4935,7 +4981,7 @@ function sharedPrintCSS() {
     #PRINT_ROOT table.dense td.num{ font-size:9.5px; }
     #PRINT_ROOT tr{ page-break-inside:avoid; }
     #PRINT_ROOT tr.breakdown-row td{ color:#6B7280; font-size:9.5px; font-style:italic; border-top:none; background:#fff; }
-    #PRINT_ROOT tr.total-row td{ background:#E9EBEE; font-weight:bold; color:#1F2937; }
+    #PRINT_ROOT tr.total-row td{ background:#E9EBEE; font-weight:bold; color:#000; }
     /* Section starts: any element with .pg-section-start always begins a
        fresh page, regardless of position in the document. */
     #PRINT_ROOT .pg-section-start{ page-break-before:always; }
@@ -6845,7 +6891,7 @@ async function exportProgressPDF() {
     <style>${sharedPrintCSS()}
       #PRINT_ROOT tr.zebra td{ background:#F6F8FB; }
       #PRINT_ROOT tr.done-row td{ background:#E3F6EC; }
-      #PRINT_ROOT tr.total-row td{ background:#FDF3E0; font-weight:bold; color:#1F2937; }
+      #PRINT_ROOT tr.total-row td{ background:#E9EBEE; font-weight:bold; color:#000; }
       #PRINT_ROOT .stage-pdf-cols{ display:flex; gap:14px; }
       #PRINT_ROOT .stage-pdf-col{ flex:1; min-width:0; }
       #PRINT_ROOT .photo-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
