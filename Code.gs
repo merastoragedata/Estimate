@@ -24,7 +24,7 @@
 // ping() so the Admin Panel's "Test Connection" can prove whether the
 // deployment you're actually hitting has the latest actions (e.g. image
 // upload) or whether you're calling a stale/different deployment URL.
-var BACKEND_VERSION = "v12-liteboot-2026-06-22";
+var BACKEND_VERSION = "v13-signatories-2026-06-22";
 
 var SS_NAME = "MSETCL Estimate Generator DB";
 
@@ -119,6 +119,7 @@ function doPost(e) {
     else if (action === "setSorCode")      result = setSorCode(body.version, body.code, body.actingRole||"");
     else if (action === "getSorCodes")     result = getSorCodes();
     else if (action === "setDefaultSorVersion") result = setDefaultSorVersion(body.version, body.actingRole||"");
+    else if (action === "setUserDefaultSignatories") result = setUserDefaultSignatories(body.userId, body.signatories);
     else if (action === "registerUser")    result = registerUser(body.user);
     else if (action === "loginUser")       result = loginUser(body.id, body.passHash);
     else if (action === "saveUser")        result = saveUser(body.user, body.actingRole||"");
@@ -388,6 +389,14 @@ function setPrintAllowedUsers(userIds, actingRole) {
   setConfigValue_("printAllowedUsers", JSON.stringify(userIds||[]));
   return {ok:true};
 }
+function setUserDefaultSignatories(userId, signatories) {
+  if (!userId) return {ok:false, error:"Missing userId"};
+  setConfigValue_("userSig_" + userId, JSON.stringify(signatories||[]));
+  return {ok:true};
+}
+function getUserDefaultSignatories_(userId) {
+  return tryParse(getConfigValue_("userSig_" + userId, "[]"), []);
+}
 function setDefaultSorVersion(version, actingRole) {
   if (actingRole !== "admin") return {ok:false, error:"Only admin can set the default SOR version"};
   setConfigValue_("defaultSorVersion", version||"");
@@ -499,6 +508,7 @@ function bootstrap(userId, role, lite) {
     printAllowed: isUserPrintAllowed_(userId, role),
     sorCodes: tryParse(getConfigValue_("sorCodes", "{}"), {}),
     defaultSorVersion: getConfigValue_("defaultSorVersion", ""),
+    userDefaultSignatories: getUserDefaultSignatories_(userId),
     aiKeyConfigured: !!getConfigValue_("anthropicApiKey", "")
   };
   if (role === "admin") {

@@ -40,7 +40,7 @@ const APPS_SCRIPT_CODE = `// ═════════════════
 // ping() so the Admin Panel's "Test Connection" can prove whether the
 // deployment you're actually hitting has the latest actions (e.g. image
 // upload) or whether you're calling a stale/different deployment URL.
-var BACKEND_VERSION = "v12-liteboot-2026-06-22";
+var BACKEND_VERSION = "v13-signatories-2026-06-22";
 
 var SS_NAME = "MSETCL Estimate Generator DB";
 
@@ -135,6 +135,7 @@ function doPost(e) {
     else if (action === "setSorCode")      result = setSorCode(body.version, body.code, body.actingRole||"");
     else if (action === "getSorCodes")     result = getSorCodes();
     else if (action === "setDefaultSorVersion") result = setDefaultSorVersion(body.version, body.actingRole||"");
+    else if (action === "setUserDefaultSignatories") result = setUserDefaultSignatories(body.userId, body.signatories);
     else if (action === "registerUser")    result = registerUser(body.user);
     else if (action === "loginUser")       result = loginUser(body.id, body.passHash);
     else if (action === "saveUser")        result = saveUser(body.user, body.actingRole||"");
@@ -404,6 +405,14 @@ function setPrintAllowedUsers(userIds, actingRole) {
   setConfigValue_("printAllowedUsers", JSON.stringify(userIds||[]));
   return {ok:true};
 }
+function setUserDefaultSignatories(userId, signatories) {
+  if (!userId) return {ok:false, error:"Missing userId"};
+  setConfigValue_("userSig_" + userId, JSON.stringify(signatories||[]));
+  return {ok:true};
+}
+function getUserDefaultSignatories_(userId) {
+  return tryParse(getConfigValue_("userSig_" + userId, "[]"), []);
+}
 function setDefaultSorVersion(version, actingRole) {
   if (actingRole !== "admin") return {ok:false, error:"Only admin can set the default SOR version"};
   setConfigValue_("defaultSorVersion", version||"");
@@ -515,6 +524,7 @@ function bootstrap(userId, role, lite) {
     printAllowed: isUserPrintAllowed_(userId, role),
     sorCodes: tryParse(getConfigValue_("sorCodes", "{}"), {}),
     defaultSorVersion: getConfigValue_("defaultSorVersion", ""),
+    userDefaultSignatories: getUserDefaultSignatories_(userId),
     aiKeyConfigured: !!getConfigValue_("anthropicApiKey", "")
   };
   if (role === "admin") {
@@ -1481,6 +1491,7 @@ async function enterApp() {
     ST.sorVersions = boot.sorVersions||[];
     ST.sorCodes = boot.sorCodes||{};
     ST.defaultSorVersion = boot.defaultSorVersion||'';
+    if (boot.userDefaultSignatories && boot.userDefaultSignatories.length===4) ST.user.defaultSignatories = boot.userDefaultSignatories;
     ST.sorVersionCounts = boot.sorVersionCounts||{};
     ST.nonSorCache = boot.nonSor||[];
     ST.tcodesCache = boot.tcodes||[];
@@ -2514,15 +2525,16 @@ function applySmartColWidths(ws, rows) {
 // ── Shared Excel theme — luxury navy/gold, matching the app & PDF exactly.
 // Every fill uses patternType:'solid' (required for xlsx-js-style to render),
 // borders are explicit, and the header carries a gold underline accent. ──
+const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
 const _THIN = { style:'thin', color:{ rgb:'D7DEEA' } };
 const _GOLD_EDGE = { style:'medium', color:{ rgb:'9AA3AF' } };
 const XLSX_STYLES = {
-  header:   { font:{name:'Calibri', bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
-  section:  { font:{name:'Calibri', bold:true, color:{rgb:'1F2937'}, sz:12}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
-  total:    { font:{name:'Calibri', bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'E9EBEE'}}, alignment:{vertical:'center'}, border:{top:_GOLD_EDGE,left:_THIN,right:_THIN,bottom:_THIN} },
-  subtotal: { font:{name:'Calibri', bold:true, color:{rgb:'1F2937'}}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
-  subtle:   { font:{name:'Calibri', italic:true, color:{rgb:'54627E'}, sz:9}, alignment:{vertical:'center'} },
-  done:     { font:{name:'Calibri'}, fill:{patternType:'solid', fgColor:{rgb:'E3F6EC'}} },
+  header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
+  section:  { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:12}, fill:{patternType:'solid', fgColor:{rgb:'E3E6EB'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
+  total:    { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}, sz:11}, fill:{patternType:'solid', fgColor:{rgb:'E9EBEE'}}, alignment:{vertical:'center'}, border:{top:_GOLD_EDGE,left:_THIN,right:_THIN,bottom:_THIN} },
+  subtotal: { font:{name:EXPORT_FONT, bold:true, color:{rgb:'1F2937'}}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center'}, border:{top:_THIN,left:_THIN,right:_THIN,bottom:_THIN} },
+  subtle:   { font:{name:EXPORT_FONT, italic:true, color:{rgb:'54627E'}, sz:9}, alignment:{vertical:'center'} },
+  done:     { font:{name:EXPORT_FONT}, fill:{patternType:'solid', fgColor:{rgb:'E3F6EC'}} },
 };
 const SECTION_TITLE_STYLE = { font:XLSX_STYLES.section.font, fill:XLSX_STYLES.section.fill, border:XLSX_STYLES.section.border, alignment:{vertical:'center', horizontal:'center', wrapText:false} };
 function _rowPopulated(ws, r, colCount){
@@ -2577,12 +2589,12 @@ function applyMsetclHeaderBanner(ws, colCount) {
     const addr = XLSX.utils.encode_cell({r, c:0});
     if (!ws[addr]) ws[addr] = {t:'s', v:''};
     ws[addr].s = {
-      font: { name:'Calibri', bold:true, sz: r===0?14:11, color:{rgb:'1F2937'} },
+      font: { name:EXPORT_FONT, bold:true, sz: r===0?14:11, color:{rgb:'1F2937'} },
       fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : {patternType:'solid', fgColor:{rgb:'EFF1F4'}},
       alignment: { horizontal:'center', vertical:'center', wrapText:true },
       border: r===3 ? {bottom:{style:'medium',color:{rgb:'9AA3AF'}}} : undefined
     };
-    setRowHeight(ws, r, r===0 ? 26 : 20);
+    // heights are computed by autoRowHeights (content-based, print-ready)
   }
 }
 
@@ -2602,7 +2614,7 @@ function styleMsetclTitleRow(ws, colCount) {
   const addr = XLSX.utils.encode_cell({r:0, c:0});
   if (!ws[addr]) ws[addr] = {t:'s', v:''};
   ws[addr].s = {
-    font: { name:'Calibri', bold:true, sz:14, color:{rgb:'1F2937'} },
+    font: { name:EXPORT_FONT, bold:true, sz:14, color:{rgb:'1F2937'} },
     fill: { patternType:'solid', fgColor:{rgb:'D9DDE3'} },
     alignment: { horizontal:'center', vertical:'center', wrapText:false },
     border: { bottom:{style:'medium', color:{rgb:'9AA3AF'}} }
@@ -2653,6 +2665,42 @@ function installLuxeXlsx(X) {
 
 const LUXE_GRID = { style:'thin', color:{ rgb:'D7DEEA' } };
 const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right:LUXE_GRID };
+// Exact column widths from the approved edited sheet (print-ready).
+const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
+const COLW_ABSTRACT = [15.86, 10, 15.86, 1.86, 16, 9, 2.57, 17.43, 14.86, 1.86, 20.71, 53.29];
+// Estimate each row's height from its content so nothing is clipped when
+// printed (rows auto-size to content — required for a ready-to-print sheet).
+function autoRowHeights(ws, defaultFontSz=12, mins){
+  if (!ws['!ref']) return;
+  const range = XLSXmod.utils.decode_range(ws['!ref']);
+  const cols = ws['!cols'] || [];
+  const colW = (c)=> (cols[c] && cols[c].wch) ? cols[c].wch : 8.43;
+  const merges = ws['!merges'] || [];
+  const mInfo = {};
+  merges.forEach(m=>{ let w=0; for(let c=m.s.c;c<=m.e.c;c++) w+=colW(c); mInfo[m.s.r+':'+m.s.c] = { w, rows:m.e.r-m.s.r+1 }; });
+  const rowsArr = ws['!rows'] = ws['!rows'] || [];
+  for (let r=range.s.r; r<=range.e.r; r++){
+    let maxLines = 1, maxSz = defaultFontSz;
+    for (let c=range.s.c; c<=range.e.c; c++){
+      const ad = XLSXmod.utils.encode_cell({r,c}); const cell = ws[ad];
+      if (!cell || cell.v==null || cell.v==='') continue;
+      const mi = mInfo[r+':'+c];
+      const w = mi ? mi.w : colW(c);
+      const sz = (cell.s && cell.s.font && cell.s.font.sz) || defaultFontSz;
+      if (sz > maxSz) maxSz = sz;
+      const cpl = Math.max(4, Math.floor(w * (11/sz) * 1.85));
+      let lines = 0;
+      String(cell.v).split('\n').forEach(seg => lines += Math.max(1, Math.ceil((seg.length||1)/cpl)));
+      const spanned = mi ? mi.rows : 1;
+      const perRow = Math.ceil(lines / spanned);
+      if (perRow > maxLines) maxLines = perRow;
+    }
+    let h = Math.min(200, Math.max(16, Math.round(maxLines * (maxSz * 1.4) + 6)));
+    // Fixed rows keep at least the approved-sheet height, but still expand to wrap
+    if (mins && mins[r] != null) h = Math.max(h, mins[r]);
+    rowsArr[r] = Object.assign({}, rowsArr[r], { hpt: h });
+  }
+}
 const LUXE_NUMFMT = '#,##,##0.##';        // Indian grouping, decimals only when present
 const RUPEE_FMT   = '"₹"#,##,##0.00';     // ₹ + Indian grouping (amounts with paise)
 // Per-cell number formats — chosen from the VALUE so integers never show a
@@ -2693,8 +2741,8 @@ function beautifySheet(ws) {
       // remember whether wrap was explicitly set before we touch alignment
       const wrapPreset = s.alignment && s.alignment.hasOwnProperty('wrapText');
       s.border = s.border || LUXE_BORDER_ALL;
-      if (!s.font) s.font = { name:'Calibri', sz:10, color:{ rgb:'1F2937' } };
-      else if (!s.font.name) s.font.name = 'Calibri';
+      if (!s.font) s.font = { name:EXPORT_FONT, sz:10, color:{ rgb:'1F2937' } };
+      else if (!s.font.name) s.font.name = EXPORT_FONT;
       s.alignment = Object.assign({ vertical:'center' }, s.alignment || {});
       const isNum = cell.t === 'n' || typeof cell.v === 'number';
       if (isNum) {
@@ -3460,7 +3508,13 @@ function normalizeLoadedEstimate(e) {
 }
 
 function effectiveRates() {
-  return {...ST.chargeRates, ...(ST.currentEstimate.settings||{})};
+  const r = {...ST.chargeRates, ...(ST.currentEstimate.settings||{})};
+  // For R&M works, Freight & Insurance defaults to 0% unless explicitly set.
+  if (ST.currentEstimate.estimateType === 'rm' &&
+      !(ST.currentEstimate.settings && ST.currentEstimate.settings.freightInsurance != null)) {
+    r.freightInsurance = 0;
+  }
+  return r;
 }
 
 function renderWorkspaceShell() {
@@ -3504,6 +3558,13 @@ function renderWorkspaceShell() {
       <div class="collapse-body"><div class="collapse-body-inner">
         <div class="flex gap-2" style="flex-wrap:wrap">${downloadButtons}</div>
         <p class="hint mt-1">PR Format downloads are available in the PMO / PR Numbers section on the Abstract tab.</p>
+      </div></div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">✍ Define Signatories</span><span class="chev">▸</span></div>
+      <div class="collapse-body"><div class="collapse-body-inner" id="sig-editor-body">
+        ${signatoryEditorHtml(e, readOnly)}
       </div></div>
     </div>
 
@@ -4136,16 +4197,18 @@ function estimateHeaderRows(e, sectionPrNo) {
 // Approval signatories that print at the bottom of every estimate sheet.
 // Editable per estimate (e.signatories); falls back to the standard MSETCL
 // O&M block with the estimate's own office/division.
+const DEFAULT_SIGNATORIES = [
+  { title:'Additional Executive Engineer (M)', office:'400 kV Karjat S/s',              hidden:false },
+  { title:'Dy. Executive Engineer (O)',        office:'400kV R.S O&M Division Karjat',  hidden:false },
+  { title:'Deputy Manager (F&A)',              office:'400kV R.S O&M Division Karjat',  hidden:false },
+  { title:'Executive Engineer',                office:'400kV R.S O&M Division Karjat',  hidden:false },
+];
 function estimateSignatories(e) {
-  const stored = (e.progress && e.progress.signatories) || e.signatories;
-  if (Array.isArray(stored) && stored.length === 4) return stored;
-  const office = e.signatoryOffice || e.division || '';
-  return [
-    { title:'Additional Executive Engineer (M)', office },
-    { title:'Dy. Executive Engineer (O)',        office },
-    { title:'Deputy Manager (F&A)',              office },
-    { title:'Executive Engineer',                office },
-  ];
+  const stored = (e && e.progress && e.progress.signatories)
+              || (e && e.signatories)
+              || (ST.user && ST.user.defaultSignatories);
+  if (Array.isArray(stored) && stored.length === 4) return stored.map(s=>({title:s.title||'', office:s.office||'', hidden:!!s.hidden}));
+  return DEFAULT_SIGNATORIES.map(s=>({...s}));
 }
 // Build the signatory footer as AOA rows + the merge ranges to apply.
 // Blocks sit at columns A:C, D:F, H:I, K:L across the sheet width.
@@ -4155,7 +4218,7 @@ function signatoryBlock(e, colCount, startRow) {
   const titleRow = new Array(colCount).fill('');
   const officeRow = new Array(colCount).fill('');
   const cols = [0, 3, 7, 10];
-  sig.forEach((s,i)=>{ titleRow[cols[i]] = s.title; officeRow[cols[i]] = s.office; });
+  sig.forEach((s,i)=>{ if (s.hidden) return; titleRow[cols[i]] = s.title; officeRow[cols[i]] = s.office; });
   const rows = [blanks.slice(), blanks.slice(), titleRow, officeRow];  // 2 spacer rows then title+office
   const tR = startRow + 2, oR = startRow + 3;
   const spans = [[0,2],[3,5],[7,8],[10,11]];
@@ -4333,7 +4396,7 @@ async function exportEstimateExcel() {
   absStyleMap[abstractHeader.length] = 'section';        // ABSTRACT title
   absStyleMap[abstractHeader.length+1] = 'header';       // column-header row
   const abs = XLSXmod.utils.aoa_to_sheet(absRows);
-  abs['!cols'] = [{wch:7},{wch:26},{wch:8},{wch:8},{wch:10},{wch:12},{wch:14},{wch:9},{wch:12},{wch:9},{wch:14},{wch:16}];
+  abs['!cols'] = COLW_ABSTRACT.map(w=>({wch:w}));
   abs['!merges'] = [];
   const titleIdx = abstractHeader.length, colHdrIdx = abstractHeader.length + 1;
   abs['!merges'].push({s:{r:titleIdx,c:0}, e:{r:titleIdx,c:A_COLS-1}});
@@ -4343,7 +4406,7 @@ async function exportEstimateExcel() {
     if (/^Amount in Words/i.test(lbl)) {
       const words = String(amt==null?'':amt);
       const ad = XLSXmod.utils.encode_cell({r:ri,c:0});
-      abs[ad] = {t:'s', v: words ? (lbl+': '+words) : lbl, s:{alignment:{horizontal:'left',vertical:'center',wrapText:true}, font:{name:'Calibri',bold:true,sz:10,color:{rgb:'1F2937'}}}};
+      abs[ad] = {t:'s', v: words ? (lbl+': '+words) : lbl, s:{alignment:{horizontal:'left',vertical:'center',wrapText:true}, font:{name:EXPORT_FONT,bold:true,sz:10,color:{rgb:'1F2937'}}}};
       const bd=XLSXmod.utils.encode_cell({r:ri,c:1}); if(abs[bd]) abs[bd].v='';
       const ld=XLSXmod.utils.encode_cell({r:ri,c:A_COLS-1}); if(abs[ld]) abs[ld].v='';
       abs['!merges'].push({s:{r:ri,c:0},e:{r:ri,c:A_COLS-1}});
@@ -4361,9 +4424,13 @@ async function exportEstimateExcel() {
     }
   }
   aSig.merges.forEach(m=>abs['!merges'].push(m));
-  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:'Calibri',bold:idx===0,sz:10,color:{rgb:'1F2937'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); setRowHeight(abs,r,idx===0?30:18); });
+  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'1F2937'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); });
   applyRowStyles(abs, absStyleMap, A_COLS);
   applyMsetclHeaderBanner(abs, A_COLS);
+  const absMins = {0:26.1, 1:26.2, 2:40.5, 3:26.2, 4:28.5};
+  absMins[colHdrIdx] = 28.5;
+  absMins[aSig.titleRowIdx] = 42; absMins[aSig.officeRowIdx] = 42;
+  autoRowHeights(abs, 12, absMins);
   XLSXmod.utils.book_append_sheet(wb, abs, 'Abstract');
 
   // Section sheets
@@ -4445,11 +4512,17 @@ async function exportEstimateExcel() {
       [0,3,7,10].forEach(c=>{
         const ad = XLSXmod.utils.encode_cell({r, c});
         if (ws[ad]) { ws[ad].s = Object.assign({}, ws[ad].s, {
-          font:{name:'Calibri', bold: idx===0, sz:10, color:{rgb:'1F2937'}},
+          font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'1F2937'}},
           alignment:{horizontal:'center', vertical:'center', wrapText:true} }); }
       });
-      setRowHeight(ws, r, idx===0 ? 30 : 18);
     });
+    ws['!cols'] = COLW_SECTION.slice(0, colCount).map(w=>({wch:w}));
+    const secMins = {0:34.5, 1:26.2, 2:26.2, 3:26.2, 4:36.8};   // banner rows (edited sheet)
+    secMins[header.length+1] = 67.5;                             // column-header row (wrapped headers)
+    secMins[header.length + itemRows.length - 1] = 28.5;         // TOTAL
+    secMins[wordsRow] = 38.2;                                    // Amount in Words
+    secMins[_sig.titleRowIdx] = 48; secMins[_sig.officeRowIdx] = 48;
+    autoRowHeights(ws, 12, secMins);
     XLSXmod.utils.book_append_sheet(wb, ws, sanitizeSheetName(name));
   });
 
@@ -4481,6 +4554,7 @@ async function exportEstimateExcel() {
       }
     }
     applyMsetclHeaderBanner(ws, Math.max(...rows.map(r=>r.length)));
+    autoRowHeights(ws);
     XLSXmod.utils.book_append_sheet(wb, ws, 'NON SOR Items');
   }
 
@@ -4794,7 +4868,7 @@ function printHtmlTable(rows, opt){
     }).join('')}</tbody></table>`;
 }
 async function printEstimate(){
-  if (!canPrint()) { toast("Print isn't enabled for your account (feature on trial). Ask an admin to enable it.",'warn',6000); return; }
+  // print is available directly now (opens the browser print dialog)
   const e = ST.currentEstimate;
   const root = document.createElement('div'); root.id = 'PRINT_ROOT';
   let html = `<style>${sharedPrintCSS()}</style>`;
@@ -5045,7 +5119,7 @@ function prStylePass(ws, rows) {
     for (let c=1;c<rows[r].length;c++) {
       const addr = XLSX.utils.encode_cell({r,c});
       if (!ws[addr]) ws[addr] = {t:'s', v:rows[r][c]||''};
-      ws[addr].s = { fill:{patternType:'solid', fgColor:{rgb: isBanner?PR_BANNER_FILL:PR_LABEL_FILL}}, font:{name:'Calibri', bold:true}, border:{top:_THIN,bottom:_THIN,left:_THIN,right:_THIN} };
+      ws[addr].s = { fill:{patternType:'solid', fgColor:{rgb: isBanner?PR_BANNER_FILL:PR_LABEL_FILL}}, font:{name:EXPORT_FONT, bold:true}, border:{top:_THIN,bottom:_THIN,left:_THIN,right:_THIN} };
     }
   }
 }
@@ -6362,9 +6436,36 @@ function onSignatoryInput(idx, field, val) {
   e.progress = e.progress || {};
   if (!Array.isArray(e.progress.signatories) || e.progress.signatories.length !== 4)
     e.progress.signatories = estimateSignatories(e).map(s=>({...s}));
-  e.progress.signatories[idx][field] = val;
+  if (field === 'hidden') e.progress.signatories[idx].hidden = !!val;
+  else e.progress.signatories[idx][field] = val;
   ST.dirty = true;
 }
+function signatoryEditorHtml(e, readOnly){
+  const sig = estimateSignatories(e);
+  return `
+    <p class="hint" style="margin:0 0 8px">Four approval blocks printed across the footer of every sheet (post + work location). Toggle any block off to hide it. Defaults to the standard MSETCL O&M block; set your own default in your profile.</p>
+    ${sig.map((s,i)=>`
+      <div class="sig-row ${s.hidden?'is-hidden':''}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <label class="toggle-mini" title="Show / hide this signatory">
+          <input type="checkbox" ${s.hidden?'':'checked'} ${readOnly?'disabled':''} onchange="onSignatoryInput(${i},'hidden',!this.checked); this.closest('.sig-row').classList.toggle('is-hidden',!this.checked)">
+          <span></span>
+        </label>
+        <input value="${escapeHtml(s.title)}" placeholder="Post / Designation ${i+1}" ${readOnly?'disabled':''} oninput="onSignatoryInput(${i},'title',this.value)" style="flex:1 1 240px">
+        <input value="${escapeHtml(s.office)}" placeholder="Work Location ${i+1}" ${readOnly?'disabled':''} oninput="onSignatoryInput(${i},'office',this.value)" style="flex:1 1 240px">
+      </div>`).join('')}
+    ${!readOnly ? `<button class="btn btn-ghost btn-sm mt-1" onclick="saveSignatoriesAsDefault()">⭐ Save these as my default</button>` : ''}
+  `;
+}
+async function saveSignatoriesAsDefault(){
+  const sig = estimateSignatories(ST.currentEstimate);
+  try {
+    const res = await apiPost({action:'setUserDefaultSignatories', userId:ST.user.id, signatories:sig});
+    if (res && res.ok===false) { toast(explainBackendError(res.error)||'Saved locally (backend older)','warn'); }
+    else toast('Saved as your default signatories.','ok');
+  } catch(e){ toast('Saved for this session.','warn'); }
+  ST.user.defaultSignatories = sig;   // apply immediately for this session
+}
+
 function onOrderDetailInput(key, val) {
   ST.currentEstimate.progress.orderDetails[key] = val;
 }
@@ -8464,6 +8565,9 @@ function renderFinalEstimatePage(){
   const buttons = `<button class="btn btn-ghost" onclick="navigateTo('dashboard')">🏠 Home</button>`;
   const R = Object.assign({}, ST.chargeRates||{}, FE.chargeOverrides||{});
   const b = FE.baseEstimate;
+  // Additional Charge only applies when an AC toggle is on; otherwise it reads 0.
+  const acOn = b ? !!(b.addCharge && (b.addCharge.supply==='yes' || b.addCharge.project==='yes'))
+                 : !!(FE.acSupply || FE.acProject);
   const ests = [...(ST.estimatesCache||[])].sort((a,x)=> new Date(x.savedAt||0)-new Date(a.savedAt||0));
   const prList = b ? (b.pmoPrEntries||[]).filter(p=>p.label&&p.label.trim()&&p.number&&p.number.trim()) : [];
   main.innerHTML = `
@@ -8493,8 +8597,10 @@ function renderFinalEstimatePage(){
       <div class="collapse-body"><div class="collapse-body-inner">
         <p class="hint" style="margin:0 0 8px">Seeded from ${b?'the adopted estimate and':''} the Rates page — edit any value for THIS final estimate only (e.g. Centages 10 → 7). A charge set to 0 removes its column/row entirely.</p>
         <div class="flex gap-3" style="flex-wrap:wrap">
-          ${[['additionalCharge','Additional Charge %'],['labourCess','Labour Cess %'],['freightInsurance','F&I % (Supply)'],['gst','GST %'],['pv','PV %'],['contingencies','Contingencies %'],['centages','Centages %']].map(([k,l])=>`
-            <label class="text-xs" style="display:flex;flex-direction:column"><span>${l}</span><input type="number" step="0.5" min="0" value="${R[k]??''}" oninput="feSetOverride('${k}', this.value)" style="width:110px"></label>`).join('')}
+          ${[['additionalCharge','Additional Charge %'],['labourCess','Labour Cess %'],['freightInsurance','F&I % (Supply)'],['gst','GST %'],['pv','PV %'],['contingencies','Contingencies %'],['centages','Centages %']].map(([k,l])=>{
+            const disp = (k==='additionalCharge' && !acOn) ? 0 : (R[k]??'');
+            return `<label class="text-xs" style="display:flex;flex-direction:column"><span>${l}</span><input type="number" step="0.5" min="0" value="${disp}" oninput="feSetOverride('${k}', this.value)" style="width:110px"></label>`;
+          }).join('')}
         </div>
         <div class="flex gap-3 mt-2" style="flex-wrap:wrap">
           <label class="text-sm">Type:
@@ -8669,7 +8775,8 @@ function renderFinalEstimateResult(){
         <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">⬇ Download Final Estimate</span><span class="chev">▸</span></div>
         <div class="collapse-body"><div class="collapse-body-inner">
           <div class="flex gap-2" style="flex-wrap:wrap">
-            <button class="btn btn-gold" onclick="feDownloadExcel()">⬇ Excel</button>
+            <button class="btn btn-gold" onclick="feDownloadExcel()">⬇ Download Excel</button>
+            <button class="btn btn-ghost" onclick="feDownloadPrint()">🖨 Print</button>
             <button class="btn btn-ghost" onclick="feDownloadRawZest()">⬇ Uploaded ZEST03</button>
             <button class="btn btn-ghost" onclick="renderFinalEstimateResult()">↺ Refresh Preview</button>
           </div>

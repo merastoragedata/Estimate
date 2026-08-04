@@ -1135,3 +1135,12 @@ body::after{
   font-weight:600; font-size:13px; color:var(--steel-600,#54627e); cursor:pointer; transition:all .15s var(--ease-out); }
 .seg-tab:hover{ background:rgba(255,255,255,.6); }
 .seg-tab.active{ background:#fff; color:var(--ink,#1f2937); box-shadow:0 1px 4px rgba(16,24,40,.1); }
+
+/* ── Signatory editor mini toggle ── */
+.toggle-mini{ position:relative; display:inline-block; width:34px; height:20px; flex:0 0 auto; cursor:pointer; }
+.toggle-mini input{ opacity:0; width:0; height:0; position:absolute; }
+.toggle-mini span{ position:absolute; inset:0; background:#c7ccd6; border-radius:20px; transition:.15s; }
+.toggle-mini span::before{ content:''; position:absolute; width:16px; height:16px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
+.toggle-mini input:checked + span{ background:var(--gold,#c69a3f); }
+.toggle-mini input:checked + span::before{ transform:translateX(14px); }
+.sig-row.is-hidden{ opacity:.5; }
