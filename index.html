@@ -2672,7 +2672,7 @@ const COLW_ABSTRACT = [15.86, 10, 15.86, 1.86, 16, 9, 2.57, 17.43, 14.86, 1.86, 
 // printed (rows auto-size to content — required for a ready-to-print sheet).
 function autoRowHeights(ws, defaultFontSz=12, mins){
   if (!ws['!ref']) return;
-  const range = XLSXmod.utils.decode_range(ws['!ref']);
+  const range = window.XLSX.utils.decode_range(ws['!ref']);
   const cols = ws['!cols'] || [];
   const colW = (c)=> (cols[c] && cols[c].wch) ? cols[c].wch : 8.43;
   const merges = ws['!merges'] || [];
@@ -2682,7 +2682,7 @@ function autoRowHeights(ws, defaultFontSz=12, mins){
   for (let r=range.s.r; r<=range.e.r; r++){
     let maxLines = 1, maxSz = defaultFontSz;
     for (let c=range.s.c; c<=range.e.c; c++){
-      const ad = XLSXmod.utils.encode_cell({r,c}); const cell = ws[ad];
+      const ad = window.XLSX.utils.encode_cell({r,c}); const cell = ws[ad];
       if (!cell || cell.v==null || cell.v==='') continue;
       const mi = mInfo[r+':'+c];
       const w = mi ? mi.w : colW(c);
@@ -4873,16 +4873,28 @@ async function printEstimate(){
   const root = document.createElement('div'); root.id = 'PRINT_ROOT';
   let html = `<style>${sharedPrintCSS()}</style>`;
   const hdr = estimateHeaderRows(e, '');
-  const hdrHtml = `<div style="text-align:center;margin-bottom:8px">${hdr.map((r,i)=>`<div style="font-weight:${i===0?'800':'600'};font-size:${i===0?'15':'12'}px">${escapeHtml(String(r[0]))}</div>`).join('')}</div>`;
-  html += `<div class="pg">${hdrHtml}<h2>Abstract</h2>${printHtmlTable(abstractSheetRows(true), {rupeeCol:(i)=>i===2})}</div>`;
+  const hdrHtml = `<div class="print-banner" style="text-align:center;margin-bottom:8px">${hdr.map((r,i)=>`<div style="font-weight:${i===0?'800':'600'};font-size:${i===0?'15':'12'}px">${escapeHtml(String(r[0]))}</div>`).join('')}</div>`;
+  const sigHtml = printSignatoryHtml(e);
+  html += `<div class="pg">${hdrHtml}<h2>Abstract</h2>${printHtmlTable(abstractSheetRows(true), {rupeeCol:(i)=>i===2})}${sigHtml}</div>`;
   [['supply','Supply Material'],['project','ETC — Project Services'],['om','O&M Services'],['nonsor_supply','Non-SOR Materials'],['nonsor_om','Non-SOR Services']].forEach(([k,t])=>{
     if (!sectionConfig(k).items.length) return;
     const rows = sectionItemTableRows(k);
     const prNo = pmoPrForSection(e, (k==='supply'||k==='nonsor_supply')?['supply']:k==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
-    html += `<div class="pg"><h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=5})}</div>`;
+    // Header banner repeats at the top of every page, exactly like the sheets.
+    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=5})}${sigHtml}</div>`;
   });
   root.innerHTML = html;
   doPrintAndCleanup(root);
+}
+// Signatory footer for printed pages (mirrors the sheet footer).
+function printSignatoryHtml(e){
+  const sig = estimateSignatories(e).filter(s=>!s.hidden);
+  if (!sig.length) return '';
+  return `<table class="print-sig" style="margin-top:22px;border:none"><tr>${
+    sig.map(s=>`<td style="border:none;text-align:center;vertical-align:bottom;padding:6px 10px;font-size:11px">
+      <div style="font-weight:bold">${escapeHtml(s.title||'')}</div>
+      <div>${escapeHtml(s.office||'')}</div></td>`).join('')
+  }</tr></table>`;
 }
 async function feDownloadPrint(){ await feWithSyntheticAsync(()=> printEstimate()); }
 
@@ -4927,6 +4939,7 @@ function sharedPrintCSS() {
     /* Section starts: any element with .pg-section-start always begins a
        fresh page, regardless of position in the document. */
     #PRINT_ROOT .pg-section-start{ page-break-before:always; }
+    #PRINT_ROOT .print-banner{ break-inside:avoid; page-break-inside:avoid; }
     #PRINT_ROOT .pg{ page-break-after:always; padding-top:6px; }
     #PRINT_ROOT .pg:last-child{ page-break-after:auto; }
   `;
