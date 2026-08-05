@@ -1207,6 +1207,11 @@ body::after{
    FINAL ESTIMATE — signatory footer + printing the live preview
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* Print-only content: present in the preview DOM so it prints, hidden on
+   screen. Signatories belong on the printed sheet, not the web page. */
+.fe-print-only{ display:none !important; }
+@media print{ #fe-print-portal .fe-print-only{ display:table !important; } }
+
 /* Signatory block: black outer box, white inner gridlines — same as Excel. */
 .fe-sig{
   width:100%; border-collapse:collapse; margin-top:18px;

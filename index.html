@@ -3141,6 +3141,12 @@ function doPrintAndCleanup(printRoot) {
     if (cleaned) return;
     cleaned = true;
     if (printRoot && printRoot.parentNode) printRoot.parentNode.removeChild(printRoot);
+    // Clear the isolation CSS too. It contains
+    //   body > *:not(#PRINT_ROOT){ display:none !important }
+    // and used to persist in <head> for the rest of the session, so any print
+    // that ran afterwards — including the Final Estimate preview — had its own
+    // root hidden and printed blank or stale content.
+    if (_printStyleEl) _printStyleEl.textContent = '';
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
@@ -4582,9 +4588,31 @@ function sectionItemTableRows(key) {
     if (hasGST) { tr[idx] = sum.gst; idx += 1; }
     tr[idx] = sum.total;
     rows.push(tr);
+
+    // Supply spares (3% of the supply total incl. GST, project estimates only)
+    // sit directly under TOTAL, followed by the combined part total. The
+    // amount-in-words line then reports that COMBINED figure, not the bare
+    // item total — so words always match the last number above them.
+    const sparesOn = key === 'supply'
+      && ST.currentEstimate && ST.currentEstimate.estimateType === 'project'
+      && ST.currentEstimate.supplySpares;
+    const spares = sparesOn ? sum.total * 0.03 : 0;
+    let grand = sum.total;
+    if (spares > 0) {
+      const sp = new Array(headers.length).fill('');
+      sp[2] = 'Add: Supply Spares @ 3%';
+      sp[idx] = spares;
+      rows.push(sp);
+      grand = sum.total + spares;
+      const pt = new Array(headers.length).fill('');
+      pt[2] = 'Supply Part Total ( incl. Supply Spares )';
+      pt[idx] = grand;
+      rows.push(pt);
+    }
+
     // Amount-in-words line for the section, matching the official format
     const wr = new Array(headers.length).fill('');
-    wr[2] = (sum.spares ? 'Total Amount (including Spares) in Words: ' : 'Amount in Words: ') + toWords(Math.round(sum.total)) + ' Rupees Only';
+    wr[2] = (spares ? 'Total Amount (including Spares) in Words: ' : 'Amount in Words: ') + toWords(Math.round(grand)) + ' Rupees Only';
     rows.push(wr);
   }
   return rows;
@@ -4765,7 +4793,9 @@ async function exportEstimateExcel() {
     const N = itemRows[0].length;
     const H = itemRows[0];
     // item data rows only (drop the built-in TOTAL and amount-in-words rows)
-    const items = itemRows.slice(1).filter(r => String(r[2])!=='TOTAL' && !/^amount in words|^total amount/i.test(String(r[2]||'')));
+    const items = itemRows.slice(1).filter(r => String(r[2])!=='TOTAL'
+      && !/^amount in words|^total amount/i.test(String(r[2]||''))
+      && !/^add: supply spares|^supply part total/i.test(String(r[2]||'')));
     const t = sectionTotalsCalc(key);
     const rateSet = effectiveRates();
     const descCol = 2, valueCol = N - 2, statusCol = N - 1;   // last col = SoR status
@@ -5355,6 +5385,9 @@ function feDownloadPrint(orientation){
   pageStyle.id = 'fe-print-page-style';
   pageStyle.textContent = `@page{ size:A4 ${orientation==='portrait'?'portrait':'landscape'}; margin:10mm; }`;
   document.head.appendChild(pageStyle);
+
+  // Any isolation CSS left behind by another print would hide this portal.
+  if (_printStyleEl) _printStyleEl.textContent = '';
 
   const portal = document.createElement('div');
   portal.id = 'fe-print-portal';
@@ -9335,7 +9368,7 @@ function renderFinalEstimateResult(){
   const sigHtml = (()=>{
     const sig = feWithSynthetic(()=> estimateSignatories(ST.currentEstimate).filter(x=>!x.hidden));
     if (!sig || !sig.length) return '';
-    return `<table class="fe-sig"><tbody><tr>${sig.map(x=>`
+    return `<table class="fe-sig fe-print-only"><tbody><tr>${sig.map(x=>`
       <td><div class="fe-sig-title">${escapeHtml(x.title||'')}</div>
           <div class="fe-sig-office">${escapeHtml(x.office||'')}</div></td>`).join('')}</tr></tbody></table>`;
   })();
@@ -9356,7 +9389,7 @@ function renderFinalEstimateResult(){
     return `<div class="table-wrap"><table class="fe-preview">
       <thead><tr>${head.map((hd,i)=>`<th class="${dcls(i).trim()}">${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
       <tbody>${body.map(r=>{
-        const isTot = r[2]==='TOTAL';
+        const isTot = r[2]==='TOTAL' || /^Add: Supply Spares|^Supply Part Total/.test(String(r[2]||''));
         // The amount-in-words line carries no per-column data, so in the
         // PREVIEW it spans the whole table as one merged cell — larger and
         // bold, the way it reads on the official sheet. Exports are untouched.
