@@ -26,7 +26,7 @@ window.__EARLY_BOOT = (function () {
     return fetch(url, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain avoids a CORS preflight
-      body: JSON.stringify({ action: 'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1 })
+      body: JSON.stringify({ action: 'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 0 })
     }).then(function (r) { return r.text(); })
       .catch(function () { return null; });        // resolve to null; boot() retries properly
   } catch (e) { return null; }
@@ -1527,7 +1527,7 @@ async function boot() {
           if (txt && !txt.trim().startsWith('<')) res = JSON.parse(txt);
         } catch (e) { res = null; }
       }
-      if (!res) res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1});
+      if (!res) res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 0});
       if (res.ok) {
         ST.user = res.user;
         // res carries the bootstrap payload when the backend supports it;
@@ -1613,6 +1613,42 @@ function showSetupScriptHelp() {
   `, true);
 }
 
+// ── Background refresh ────────────────────────────────────────────────────
+// Everything the app needs arrives in the boot payload, then this quietly
+// re-fetches it so the caches never go stale. It never blocks the UI, never
+// touches the page the user is on, and skips entirely while the tab is
+// hidden or a request is already in flight. Opening an individual estimate
+// still fetches that estimate fresh — this only refreshes the shared caches.
+let _bgTimer = null, _bgBusy = false;
+const BG_REFRESH_MS = 4 * 60 * 1000;
+function startBackgroundRefresh(){
+  if (_bgTimer) clearInterval(_bgTimer);
+  _bgTimer = setInterval(backgroundRefresh, BG_REFRESH_MS);
+  document.addEventListener('visibilitychange', ()=>{
+    if (!document.hidden) backgroundRefresh();     // catch up on return
+  });
+}
+async function backgroundRefresh(){
+  if (_bgBusy || document.hidden || !ST.user || !ST.bootDone) return;
+  _bgBusy = true;
+  try {
+    const boot = await api('bootstrap', {userId: ST.user.id, role: ST.user.role, lite: '0'});
+    if (!boot || !boot.ok) return;
+    ST.estimates    = boot.estimates    || ST.estimates;
+    ST.chargeRates  = boot.chargeRates  || ST.chargeRates;
+    ST.sorVersions  = boot.sorVersions  || ST.sorVersions;
+    ST.nonSorCache  = boot.nonSor       || ST.nonSorCache;
+    ST.tcodes       = boot.tcodes       || ST.tcodes;
+    ST.processes    = boot.processes    || ST.processes;
+    if (boot.users) ST.users = boot.users;
+    ST._nonSorLoaded = true;
+    // Only repaint the dashboard, and only if that is what is on screen —
+    // never yank the page out from under someone mid-edit.
+    if (ST.activeTab === 'dashboard' && !ST.currentEstimate) renderActiveTab();
+  } catch(e){ /* silent: a failed background refresh must never disturb the user */ }
+  finally { _bgBusy = false; }
+}
+
 async function enterApp(preloadedBoot) {
   renderAppShell();
   showPageLoading();
@@ -1650,6 +1686,7 @@ async function enterApp(preloadedBoot) {
     navigateTo('dashboard');
     if (window.__hideBootSplash) window.__hideBootSplash();
     ST.sorReady = loadSorData();
+    startBackgroundRefresh();
   } catch(e) {
     if (window.__hideBootSplash) window.__hideBootSplash();
     toast('Failed to load app data: '+e.message, 'err', 6000);
@@ -1785,7 +1822,7 @@ async function doLogin() {
     const passHash = hashPass(pass);
     // withBoot folds the Home payload into the login response, so a manual
     // login also lands on the dashboard in a single round trip.
-    const res = await apiPost({action:'loginUser', id, passHash, withBoot: 1, lite: 1});
+    const res = await apiPost({action:'loginUser', id, passHash, withBoot: 1, lite: 0});
     if (!res.ok) { errEl.textContent = res.error||'Login failed.'; errEl.style.display='block'; return; }
     ST.user = res.user;
     const stay = document.getElementById('stay-toggle').classList.contains('on');
@@ -4015,6 +4052,31 @@ function toggleSupplySpares() {
   renderActiveTab();
 }
 
+// ── Supply spares: ONE definition, used by every surface ──────────────────
+// The abstract prints "1B : Supply Spares @ 3% (on Sr. No.1A)", and Sr. No.1A
+// is the supply base INCLUDING Non-SOR materials. Spares were previously
+// computed from the SOR-only supply section, so on any estimate carrying
+// Non-SOR supply items the printed figure was short by 3% of those items and
+// contradicted its own label. It also disagreed with the Final Estimate,
+// where ZEST03 puts every supply item in one section so nothing was excluded.
+// Every caller now derives the amount from this single function.
+function supplySparesApplies() {
+  const e = ST.currentEstimate;
+  return !!(e && e.estimateType === 'project' && e.supplySpares);
+}
+function supplySparesBase() {          // = Sr. No.1A  (SOR supply + Non-SOR materials)
+  const sectionTotal = (key)=>{
+    const cfg = sectionConfig(key);
+    let t = 0;
+    cfg.items.forEach(it => { t += calcItem(it, effectiveRates(), cfg.acKey).total; });
+    return t;
+  };
+  return sectionTotal('supply') + sectionTotal('nonsor_supply');
+}
+function supplySparesAmount() {
+  return supplySparesApplies() ? supplySparesBase() * 0.03 : 0;
+}
+
 function sectionTotalsCalc(key) {
   const cfg = sectionConfig(key);
   let base=0, ac=0, lc=0, fi=0, gst=0, total=0;
@@ -4022,10 +4084,7 @@ function sectionTotalsCalc(key) {
     const c = calcItem(it, effectiveRates(), cfg.acKey);
     base+=c.base; ac+=c.ac; lc+=c.lc; fi+=c.fi; gst+=c.gst; total+=c.total;
   });
-  let spares = 0;
-  if (key==='supply' && ST.currentEstimate.estimateType==='project' && ST.currentEstimate.supplySpares) {
-    spares = total*0.03;
-  }
+  const spares = (key==='supply') ? supplySparesAmount() : 0;
   return {base, ac, lc, fi, gst, total: total+spares, spares, preSparesTotal: total};
 }
 
@@ -4513,13 +4572,16 @@ function estimateSignatories(e) {
 }
 // Build the signatory footer as AOA rows + the merge ranges to apply.
 // Blocks sit at columns A:C, D:F, H:I, K:L across the sheet width.
-function signatoryBlock(e, colCount, startRow) {
-  const sig = estimateSignatories(e);
+function signatoryBlock(e, colCount, startRow, opts) {
+  let sig = estimateSignatories(e);
+  // The Non-SOR sheet carries only the last three signatories.
+  if (opts && opts.skipFirst) sig = sig.slice(1);
   const blanks = new Array(colCount).fill('');
   const titleRow = new Array(colCount).fill('');
   const officeRow = new Array(colCount).fill('');
   const cols = [0, 3, 7, 10];
-  sig.forEach((s,i)=>{ if (s.hidden) return; titleRow[cols[i]] = s.title; officeRow[cols[i]] = s.office; });
+  sig.forEach((s,i)=>{ if (s.hidden || cols[i]===undefined || cols[i]>=colCount) return;
+                       titleRow[cols[i]] = s.title; officeRow[cols[i]] = s.office; });
   const rows = [blanks.slice(), blanks.slice(), titleRow, officeRow];  // 2 spacer rows then title+office
   const tR = startRow + 2, oR = startRow + 3;
   const spans = [[0,2],[3,5],[7,8],[10,11]];
@@ -4557,7 +4619,13 @@ function sectionItemTableRows(key) {
 
   const rows = [headers];
   const sum = { base:0, baseAc:0, lc:0, exLc:0, fi:0, exFi:0, gst:0, total:0 };
-  cfg.items.forEach((it, i)=>{
+  // Non-SOR items always sit at the END of the section, after the SOR items,
+  // keeping their relative order within each group.
+  const isNonSorItem = (it)=> !!(it.isCustom || it.version === 'NONSOR');
+  const ordered = cfg.items.map((it,i)=>({it,i}))
+    .sort((a,b)=> (isNonSorItem(a.it)?1:0) - (isNonSorItem(b.it)?1:0) || a.i - b.i)
+    .map(x=>x.it);
+  ordered.forEach((it, i)=>{
     const c = calcItem(it, rates, cfg.acKey);
     // Material/Service No kept as text so it never gets comma grouping.
     const row = [i+1, String(it.item_no||''), it.description];
@@ -4593,10 +4661,9 @@ function sectionItemTableRows(key) {
     // sit directly under TOTAL, followed by the combined part total. The
     // amount-in-words line then reports that COMBINED figure, not the bare
     // item total — so words always match the last number above them.
-    const sparesOn = key === 'supply'
-      && ST.currentEstimate && ST.currentEstimate.estimateType === 'project'
-      && ST.currentEstimate.supplySpares;
-    const spares = sparesOn ? sum.total * 0.03 : 0;
+    // Same single definition as the abstract — 3% of Sr. No.1A, which
+    // includes Non-SOR materials. Never recompute this locally.
+    const spares = (key === 'supply') ? supplySparesAmount() : 0;
     let grand = sum.total;
     if (spares > 0) {
       const sp = new Array(headers.length).fill('');
@@ -4666,7 +4733,10 @@ function abstractSheetRows(includeBreakdown=false) {
       rows.push([s, `Cost of Material (SUPPLY PORTION)${supplyPr}`, supply]);
     }
     if (includeBreakdown && totals.nonSorSupply>0) {
-      rows.push(['', `— SOR items: ${fmtNum(supCalc.total)}  +  Non-SOR Materials: ${fmtNum(totals.nonSorSupply)}`, '']);
+      // Must break down 1A, so use the PRE-spares SOR figure. supCalc.total
+      // already carries the spares, which made these two components sum to
+      // Sr.1 instead of to the 1A line they sit under.
+      rows.push(['', `— SOR items: ${fmtNum(supCalc.preSparesTotal)}  +  Non-SOR Materials: ${fmtNum(totals.nonSorSupply)}`, '']);
     }
   }
   if (hasProject) { const s = next(); secSerials.push(s); rows.push([s, `Cost of Work (ETC)${projectPr}`, project]); }
@@ -4862,6 +4932,14 @@ async function exportEstimateExcel() {
     // zebra + description-left on item rows only
     for (let i=itemStart;i<=itemEnd;i++){
       if ((i-itemStart)%2===1) for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
+      // Non-SOR rows carry a light yellow fill, matching the preview.
+      if (String(ws[XLSXmod.utils.encode_cell({r:i,c:statusCol})] &&
+                 ws[XLSXmod.utils.encode_cell({r:i,c:statusCol})].v || '') === 'Non-SoR') {
+        for (let c=0;c<N;c++){
+          const ad = XLSXmod.utils.encode_cell({r:i,c});
+          if (ws[ad]) { ws[ad].s = ws[ad].s || {}; ws[ad].s.fill = { patternType:'solid', fgColor:{rgb:'FFF8DC'} }; }
+        }
+      }
       [descCol, fullCol].forEach(dc=>{ if (dc<0) return;
         const dd=XLSXmod.utils.encode_cell({r:i,c:dc}); if(ws[dd]){ ws[dd].s=ws[dd].s||{}; ws[dd].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[dd].s.alignment,{horizontal:'left'}); } });
     }
@@ -4945,37 +5023,43 @@ async function exportEstimateExcel() {
     XLSXmod.utils.book_append_sheet(wb, ws, sanitizeSheetName(name));
   });
 
-  // Non-SOR sheets (Materials + Services combined, matching "NON SOR Items" reference sheet)
-  const nonSorSections = [['nonsor_supply','Non-SOR Materials'],['nonsor_om','Non-SOR Services']];
-  const nonSorAny = nonSorSections.some(d=>sectionConfig(d[0]).items.length);
-  if (nonSorAny) {
+  // Non-SOR: MATERIALS and SERVICES get a sheet each. They cannot share one
+  // sheet because their charge columns differ (a services section may carry
+  // no F&I, so the two have different header sets and column counts).
+  [['nonsor_supply','Non SOR Materials','Estimate ( Non SOR Items ) - For Supply of Items'],
+   ['nonsor_om','Non SOR Services','Estimate ( Non SOR Items ) - For Services']
+  ].forEach(([nsKey, nsSheetName, nsTitle]) => {
+    if (!sectionConfig(nsKey).items.length) return;
     const header = estimateHeaderRows(e, '');
-    let rows = header.concat([['Estimate ( Non SOR Items )']]);
-    nonSorSections.forEach(def => {
-      const key = def[0], label = def[1];
-      const cfg = sectionConfig(key);
-      if (!cfg.items.length) return;
-      rows.push([label]);
-      const itemRows = sectionItemTableRows(key);
-      rows = rows.concat(itemRows);
-    });
+    let rows = header.concat([[nsTitle]]);
+    rows = rows.concat(sectionItemTableRows(nsKey));
+    // Signatory footer — this sheet carries the LAST THREE signatories only
+    // (no first signatory), per the approved Non-SOR format.
+    const nsCols = Math.max(...rows.map(r=>r.length));
+    const sigStart = rows.length + 1;
+    const sig = signatoryBlock(e, nsCols, sigStart, {skipFirst:true});
+    rows = rows.concat(sig.rows);
+
     const ws = XLSXmod.utils.aoa_to_sheet(rows);
     applySmartColWidths(ws, rows);
-    // Subtle grey highlight on Non-SOR item rows (rows whose first cell is a
-    // running serial number) so they're visually flagged as Non-SOR.
-    const NONSOR_FILL = { patternType:'solid', fgColor:{rgb:'F2F3F5'} };
+    // Light yellow on every Non-SOR item row (rows whose first cell is a
+    // running serial), matching the Supply / O&M sheets and the preview.
+    const NONSOR_FILL = { patternType:'solid', fgColor:{rgb:'FFF8DC'} };
     for (let r=0; r<rows.length; r++){
       if (typeof rows[r][0] === 'number') {
-        for (let c=0; c<(rows[r].length||1); c++){
+        for (let c=0; c<nsCols; c++){
           const ad = XLSXmod.utils.encode_cell({r, c});
           if (ws[ad]) { ws[ad].s = ws[ad].s || {}; ws[ad].s.fill = NONSOR_FILL; }
         }
       }
     }
-    applyMsetclHeaderBanner(ws, Math.max(...rows.map(r=>r.length)));
+    (sig.merges||[]).forEach(m=>{ ws['!merges'] = ws['!merges']||[]; ws['!merges'].push(m); });
+    LUXE_BORDER_ALL(ws, rows);
+    drawOuterBorder(ws, rows);
+    applyMsetclHeaderBanner(ws, nsCols);
     autoRowHeights(ws);
-    XLSXmod.utils.book_append_sheet(wb, ws, 'NON SOR Items');
-  }
+    XLSXmod.utils.book_append_sheet(wb, ws, nsSheetName);
+  });
 
   // Final sheet: PMO / PR Numbers — formatted to match the approved sheet
   const filledPmoPr = pmoPrAllFilled(e);
@@ -8152,7 +8236,7 @@ async function exportOrderBookPDF() {
 const AIC = { messages: [], draftItems: null, draftExplanation: '', busy: false, tab: 'items', draftMeta: null };
 
 function renderAiCreatorPage() {
-  AIC.messages = []; AIC.draftItems = null; AIC.draftExplanation = ''; AIC.busy = false; AIC.draftMeta = null;
+  AIC.messages = []; AIC.draftItems = null; AIC.draftZest03 = null; AIC.draftExplanation = ''; AIC.busy = false; AIC.draftMeta = null;
   const main = document.getElementById('main-content');
   const aicActionButtons = `<button class="btn btn-ghost" onclick="navigateTo('dashboard')">🏠 Home</button>`;
   main.innerHTML = `
@@ -8420,7 +8504,7 @@ function aicStepQty(idx, delta) {
   if (row) row.classList.toggle('ai-row-selected', AIC.draftItems[idx].qty > 0);
 }
 function discardAicDraft() {
-  AIC.draftItems = null; AIC.draftExplanation = '';
+  AIC.draftItems = null; AIC.draftZest03 = null; AIC.draftExplanation = '';
   renderAicDraft();
 }
 
@@ -8477,6 +8561,15 @@ async function aicZestUpload(evt){
     });
     if (!items.length) throw new Error('No classifiable items found in the ZEST03 sheet.');
     AIC.draftItems = items;
+    // Carry the parsed sheet through to the created estimate, so opening it
+    // later shows the ZEST03 under its Final Estimate section instead of an
+    // empty panel. Same shape feUpload persists.
+    AIC.draftZest03 = {
+      meta: parsed.meta, items: parsed.items,
+      grid: grid.length*(grid[0]||[]).length <= 8000 ? grid : null,   // cap very large sheets
+      sheetLabel: ('Estimation _ ' + (parsed.meta.estNo || name)).slice(0, 31),
+      savedAt: new Date().toISOString(),
+    };
     AIC.draftMeta = {
       name: parsed.meta.estFor || ('Estimate ' + (parsed.meta.estNo||'')),
       number: parsed.meta.estNo || '', date: parsed.meta.estDate || '',
@@ -8526,6 +8619,11 @@ function confirmAicDraftToEstimate() {
     if (m.date) ST.currentEstimate.date = m.date;
     if (m.sorVersions && m.sorVersions.length) ST.currentEstimate.sorVersions = m.sorVersions;
     if (m.pmoPrEntries && m.pmoPrEntries.length) ST.currentEstimate.pmoPrEntries = m.pmoPrEntries;
+  }
+  // Attach the ZEST03 so the estimate's own Final Estimate section reflects it.
+  if (AIC.draftZest03) {
+    ST.currentEstimate.progress = ST.currentEstimate.progress || defaultProgress();
+    ST.currentEstimate.progress.zest03 = AIC.draftZest03;
   }
   ST.currentItems = AIC.draftItems.map(it => ({
     item_no: it.item_no, version: it.source==='sor' ? (resolveDefaultVersion()||'') : 'NONSOR',
@@ -9065,6 +9163,17 @@ function isPmoReferenceLabel(label){
 // When launched from within an estimate (embedded mode), FE.baseEstimate holds
 // that estimate's charge settings — type, AC toggles, PV/contingencies/centages,
 // Tr.Line — so the Final Estimate is priced EXACTLY as that estimate would be.
+// SoR membership + Non-SOR reference, resolved from the loaded catalogs.
+function feIsSorItem(matNo){
+  const id = String(matNo||'');
+  return !!(ST.sorCache && ST.sorCache.some(x => String(x.item_no) === id));
+}
+function feNonSorRemark(matNo){
+  const id = String(matNo||'');
+  const ns = (ST.nonSorCache||[]).find(x => String(x.item_no) === id);
+  return ns ? (ns.remarks || '') : '';
+}
+
 function feBuildSyntheticEstimate(){
   const res = FE.result, m = res.meta;
   const mk = (arr, section)=> arr.map(it=>({
@@ -9072,7 +9181,14 @@ function feBuildSyntheticEstimate(){
     // ZEST03's "Mat / Serv Full Description", carried verbatim. Only suppressed
     // when the short description column was empty and already fell back to it.
     fullDescription: String(it.desc||'').trim() ? String(it.full||'') : '',
-    qty:it.qty, rate:it.exworks, isCustom:false,
+    qty:it.qty, rate:it.exworks,
+    // SoR status must be looked up, not assumed. Every ZEST03 item was
+    // previously flagged isCustom:false, so genuine Non-SOR materials printed
+    // as "SoR" in the Item's SoR Status column. An item counts as SoR only if
+    // it actually exists in the SOR catalog.
+    isCustom: !feIsSorItem(it.matNo),
+    // Reference/remarks for Non-SOR items come from the Non-SOR catalog.
+    remarks: feNonSorRemark(it.matNo),
   }));
   const items = [].concat(mk(res.supply,'supply'), mk(res.project,'project'), mk(res.om,'om'));
   let est;
@@ -9390,12 +9506,13 @@ function renderFinalEstimateResult(){
       <thead><tr>${head.map((hd,i)=>`<th class="${dcls(i).trim()}">${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
       <tbody>${body.map(r=>{
         const isTot = r[2]==='TOTAL' || /^Add: Supply Spares|^Supply Part Total/.test(String(r[2]||''));
+        const isNonSorRow = String(r[r.length-1]||'') === 'Non-SoR';
         // The amount-in-words line carries no per-column data, so in the
         // PREVIEW it spans the whole table as one merged cell — larger and
         // bold, the way it reads on the official sheet. Exports are untouched.
         const isWords = typeof r[2]==='string' && /in Words:/i.test(r[2]);
         if (isWords) return `<tr class="fe-words-row"><td class="fe-words" colspan="${N}">${escapeHtml(String(r[2]))}</td></tr>`;
-        return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${dcls(i)}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
+        return `<tr class="${isTot?'fe-total':''}${isNonSorRow?' fe-nonsor':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${dcls(i)}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
   let html = `
@@ -9418,7 +9535,7 @@ function renderFinalEstimateResult(){
     <div class="card fe-print-page" style="margin-bottom:14px"><h3>Abstract</h3>${tbl(abstractRows, true)}${sigHtml}</div>`;
   [['supply','Supply Material',res.supply,secRows.supply],['project','ETC — Project Services',res.project,secRows.project],['om','O&M Services',res.om,secRows.om]].forEach(([key,title,items,rows])=>{
     html += `<div class="card${rows?' fe-print-page':' fe-noprint'}" style="margin-bottom:14px"><h3>${title} <span class="badge badge-neutral">${items.length} items</span>${res.prNos[key]?` <span class="text-sm text-muted">PR: ${escapeHtml(res.prNos[key])}</span>`:''}</h3>
-      ${rows?(secTbl(key, rows)+sigHtml):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
+      ${rows?secTbl(key, rows):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
   });
   if (res.notFound.length){
     html += `<div class="card fe-noprint" style="margin-bottom:14px"><h3>⚠ Items Not Classified <span class="badge badge-neutral">${res.notFound.length}</span></h3>
@@ -9507,14 +9624,17 @@ document.addEventListener('DOMContentLoaded', () => {
     var cur = document.createElement('div'); cur.id = 'lux-cursor';
     document.body.appendChild(cur); document.body.classList.add('lux-cursor-on');
     var HOT_SEL = '.btn,.nav-item,.mnav-item,.est-card,.user-pill,a,.tab';
-    var cx=0, cy=0, tick=false, pulled=null;
+    var cx=0, cy=0, tick=false, pulled=null, lastTarget=null;
     document.addEventListener('pointermove', function(e){
-      cx=e.clientX; cy=e.clientY;
+      cx=e.clientX; cy=e.clientY; lastTarget=e.target;
       if(tick) return; tick=true;
       raf(function(){
         tick=false;
         cur.style.transform='translate('+cx+'px,'+cy+'px) translate(-50%,-50%)';
-        var el = document.elementFromPoint(cx, cy);
+        // Use the captured event target, not elementFromPoint(): the latter
+        // hit-tests the whole document every frame, which is expensive on a
+        // large estimate table.
+        var el = lastTarget;
         if(!el || !el.closest){ if(pulled){ pulled.style.transform=''; pulled=null; } return; }
         cur.classList.toggle('hot', !!el.closest(HOT_SEL));
         var b = el.closest('.btn-gold');
@@ -9547,18 +9667,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function markReveals(scope){
     if(REDUCE || !revObs) return;
     var sel = '.card, .est-card, .stat-card, .dash-cat-section, .ws-toolbar, .table-wrap';
-    var vh = window.innerHeight || 800;
     scope.querySelectorAll(sel).forEach(function(el, i){
       if(el.hasAttribute('data-lux-rev')) return;
-      // Never animate document-like content. Two reasons:
-      //  1. translateY() promotes the element to its own compositing layer,
-      //     and a layer taller than the browser's max texture (~16k px) stops
-      //     painting partway down — a long table gets cut off MID-TABLE.
-      //  2. There is no visual benefit to fading in a dense data sheet.
-      // The Final Estimate preview is excluded outright; anything unusually
-      // tall is skipped by measurement.
+      // Skip document-like content: no visual benefit, and translateY() would
+      // promote a huge table to its own compositing layer.
+      // NOTE: this used to also measure el.offsetHeight. That read sits in a
+      // loop that writes attributes/classes/styles, so every element forced a
+      // synchronous re-layout — classic layout thrashing, and brutal on a
+      // 300+ item estimate. The threshold:0 observer above already prevents
+      // the original "never reveals" bug, so the measurement is not needed.
       if (el.closest && el.closest('#fe-result')) { el.setAttribute('data-lux-rev','1'); return; }
-      if (el.offsetHeight > vh * 2.2) { el.setAttribute('data-lux-rev','1'); return; }
       el.setAttribute('data-lux-rev','1');
       el.classList.add('lux-reveal');
       el.style.transitionDelay = Math.min(i*40, 240) + 'ms';

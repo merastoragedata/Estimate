@@ -887,7 +887,11 @@ function loginUserWithBoot_(id, passHash, withBoot, lite) {
   var res = loginUser(id, passHash);
   if (!res.ok || !withBoot) return res;
   try {
-    var boot = bootstrap(res.user.id, res.user.role, lite === undefined ? true : lite);
+    // lite is opt-IN now. The frontend loads everything up front in this one
+    // round trip and refreshes in the background, so an absent/0 flag means
+    // "send the full payload".
+    var wantLite = (lite === true || lite === 1 || lite === "1");
+    var boot = bootstrap(res.user.id, res.user.role, wantLite);
     boot.user = res.user;
     return boot;
   } catch (e) {

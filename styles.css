@@ -1290,3 +1290,10 @@ body::after{
 
   #fe-print-portal h3{ font-size:12px; margin:0 0 6px; }
 }
+
+/* Non-SOR item rows — light yellow, so they are obvious at the foot of the
+   Supply and O&M sections. Kept lighter than the TOTAL band above them. */
+.fe-preview tbody tr.fe-nonsor td,
+.fe-preview tbody tr:nth-child(even) tr.fe-nonsor td{ background:#FFF8DC !important; }
+@media print{ #fe-print-portal .fe-preview tbody tr.fe-nonsor td{
+  background:#FFF8DC !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
