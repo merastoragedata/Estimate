@@ -2061,7 +2061,44 @@ async function withSaveStatus(btn, asyncFn, savedMessage='Saved') {
 
 // ── Collapsible helper ──
 function toggleCollapse(el) {
-  el.closest('.collapse').classList.toggle('open');
+  const box = el.closest('.collapse');
+  if (!box) return;
+  const body = box.querySelector(':scope > .collapse-body') || box.querySelector('.collapse-body');
+  if (!body) { box.classList.toggle('open'); return; }
+
+  // The open state used to be a flat CSS `max-height:3000px`, which silently
+  // CROPPED any panel taller than that — a long Final Estimate lost every row
+  // past ~3000px. The resting open state is now `max-height:none` (no ceiling
+  // at all); the inline value below exists only for the duration of the
+  // animation and is cleared afterwards, so content can grow freely and
+  // anything rendered into an already-open panel is never clipped.
+  const opening = !box.classList.contains('open');
+  if (body._collapseTimer) { clearTimeout(body._collapseTimer); body._collapseTimer = null; }
+
+  if (opening) {
+    body.style.maxHeight = '0px';
+    void body.offsetHeight;                     // flush, so the transition has a start value
+    box.classList.add('open');
+    body.style.maxHeight = body.scrollHeight + 'px';
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    void body.offsetHeight;
+    box.classList.remove('open');
+    body.style.maxHeight = '0px';
+  }
+
+  // Clearing the inline value hands control back to CSS: none when open, 0
+  // when closed. transitionend can fail to fire (reduced motion, a hidden
+  // tab), so a timer guarantees the release either way — the panel must never
+  // be left stuck at a fixed pixel height.
+  const release = () => {
+    body.style.maxHeight = '';
+    body.removeEventListener('transitionend', onEnd);
+    if (body._collapseTimer) { clearTimeout(body._collapseTimer); body._collapseTimer = null; }
+  };
+  const onEnd = (ev) => { if (ev.target === body && ev.propertyName === 'max-height') release(); };
+  body.addEventListener('transitionend', onEnd);
+  body._collapseTimer = setTimeout(release, 700);
 }
 
 // ── Shared bottom action bar — mirrors a page's top actions so buttons are

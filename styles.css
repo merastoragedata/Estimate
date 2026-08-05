@@ -374,7 +374,11 @@ tbody tr:last-child td{border-bottom:none}
 .collapse-head .chev{transition:transform var(--dur) var(--ease)}
 .collapse.open .collapse-head .chev{transform:rotate(90deg)}
 .collapse-body{max-height:0; overflow:hidden; transition:max-height var(--dur-slow) var(--ease-out)}
-.collapse.open .collapse-body{max-height:3000px}
+/* Open state has NO height ceiling. This was max-height:3000px, which cropped
+   any panel taller than that — a long Final Estimate lost every row past the
+   limit. toggleCollapse() sets an inline max-height only while animating and
+   clears it afterwards, so the resting open state is uncapped. */
+.collapse.open .collapse-body{max-height:none; overflow:visible}
 .collapse-body-inner{padding:4px 16px 16px}
 
 /* tabs */
