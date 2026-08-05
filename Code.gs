@@ -66,7 +66,8 @@ var EST_HDR    = ["id","name","number","date","division","ref","work",
                   "prSettings"];
 
 var ITEM_HDR   = ["estimate_id","item_no","version","description",
-                  "uom","rate","qty","section","remarks","isCustom"];
+                  "uom","rate","qty","section","remarks","isCustom",
+                  "full_description"];
 var USER_HDR   = ["id","name","passHash","role","status","createdAt"];
 var NONSOR_HDR = ["item_no","description","uom","rate","section","remarks","addedBy","addedAt"];
 var TCODE_HDR  = ["tcode","purpose","description","remarks","addedBy","addedAt","status","image"];
@@ -121,7 +122,7 @@ function doPost(e) {
     else if (action === "setDefaultSorVersion") result = setDefaultSorVersion(body.version, body.actingRole||"");
     else if (action === "setUserDefaultSignatories") result = setUserDefaultSignatories(body.userId, body.signatories);
     else if (action === "registerUser")    result = registerUser(body.user);
-    else if (action === "loginUser")       result = loginUser(body.id, body.passHash);
+    else if (action === "loginUser")       result = loginUserWithBoot_(body.id, body.passHash, body.withBoot, body.lite);
     else if (action === "saveUser")        result = saveUser(body.user, body.actingRole||"");
     else if (action === "deleteUser")      result = deleteUser(body.id, body.actingRole||"");
     else if (action === "approveUser")     result = approveUser(body.id, body.approve, body.actingRole||"");
@@ -173,6 +174,10 @@ function getOrCreateSheet(ss, name, headers) {
          .setFontColor("#FFFFFF")
          .setFontWeight("bold");
   } else if (sheet.getLastColumn() < headers.length) {
+    // Physically widen the sheet first — getRange() beyond maxColumns throws.
+    if (sheet.getMaxColumns() < headers.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+    }
     var curHeaders = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     for (var i = curHeaders.length; i < headers.length; i++) {
       sheet.getRange(1, i+1).setValue(headers[i])
@@ -871,6 +876,28 @@ function loginUser(id, passHash) {
   if (String(r[4]) === "rejected") return {ok:false, error:"Account access denied"};
   return {ok:true, user:{id:String(r[0]), name:String(r[1]), role:String(r[3]), status:String(r[4])}};
 }
+// ── Login + bootstrap in ONE round trip ──────────────────────────────────
+// Every Apps Script invocation pays its own cold-start and spreadsheet-open
+// cost, so the old sequence (loginUser, await, bootstrap) spent that cost
+// twice before the dashboard could paint. When withBoot is set, the session
+// check and the Home payload are served from a single invocation. Falls back
+// to a plain login result when withBoot is absent, so an older frontend
+// against this backend keeps working unchanged.
+function loginUserWithBoot_(id, passHash, withBoot, lite) {
+  var res = loginUser(id, passHash);
+  if (!res.ok || !withBoot) return res;
+  try {
+    var boot = bootstrap(res.user.id, res.user.role, lite === undefined ? true : lite);
+    boot.user = res.user;
+    return boot;
+  } catch (e) {
+    // Never let a bootstrap failure block a valid login — the frontend will
+    // simply fall back to its own separate bootstrap call.
+    res.bootError = String(e && e.message ? e.message : e);
+    return res;
+  }
+}
+
 // Self-healing seed: if the Users sheet has no data rows at all (fresh
 // deployment where /exec?action=init was never explicitly called), seed the
 // default admin so the very first login never dead-ends. Only acts when the
@@ -1005,7 +1032,9 @@ function getEstimate(id, userId, role) {
       var itemSheet = ss.getSheetByName(SHEET_ITEMS);
       var items = [];
       if (itemSheet && itemSheet.getLastRow() > 1) {
-        var idata = itemSheet.getRange(2,1,itemSheet.getLastRow()-1,ITEM_HDR.length).getValues();
+        // Older sheets may not yet have the full_description column.
+        var icols = Math.min(ITEM_HDR.length, itemSheet.getMaxColumns());
+        var idata = itemSheet.getRange(2,1,itemSheet.getLastRow()-1,icols).getValues();
         for (var j=0;j<idata.length;j++) {
           if (String(idata[j][0]) === String(id)) {
             items.push({
@@ -1013,7 +1042,8 @@ function getEstimate(id, userId, role) {
               description:String(idata[j][3]), uom:String(idata[j][4]),
               rate:parseFloat(idata[j][5])||0, qty:parseFloat(idata[j][6])||0,
               section:String(idata[j][7]), remarks:String(idata[j][8]||""),
-              isCustom: idata[j][9]===true||idata[j][9]==="true"
+              isCustom: idata[j][9]===true||idata[j][9]==="true",
+              fullDescription:String(idata[j][10]||"")
             });
           }
         }
@@ -1068,7 +1098,8 @@ function saveEstimate(estimate, items) {
   if (items && items.length) {
     var toWrite = items.map(function(it){
       return [id, it.item_no, it.version||"", it.description, it.uom,
-              it.rate, it.qty, it.section, it.remarks||"", it.isCustom?true:false];
+              it.rate, it.qty, it.section, it.remarks||"", it.isCustom?true:false,
+              it.fullDescription||""];
     });
     itemSheet.getRange(itemSheet.getLastRow()+1,1,toWrite.length,ITEM_HDR.length).setValues(toWrite);
   }

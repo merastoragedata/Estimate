@@ -5,14 +5,63 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Estimation and Proposal Management</title>
 <meta name="description" content="EHV Substation Engineering · Cost Estimation Portal · MSETCL">
+<script>
+/* ── EARLY BOOT FETCH ──────────────────────────────────────────────────────
+   The app is one large inline script. Parsing it takes real time on mobile,
+   and until now the first backend request could not start until that parse
+   finished — the two costs ran back to back. This tiny head script fires the
+   session-check + Home-data request IMMEDIATELY, so the ~2s Apps Script round
+   trip overlaps with script parsing instead of following it. boot() picks up
+   the in-flight promise. Everything is wrapped so a failure here can never
+   block startup: boot() just falls back to requesting normally. */
+window.__EARLY_BOOT = (function () {
+  try {
+    if (!window.fetch || !window.localStorage) return null;
+    var url = localStorage.getItem('msetcl_script_url') ||
+      "https://script.google.com/macros/s/AKfycbzsFku6f9Sb5AlJnhTiyzZLZWx6S2LQmx-3qXtjbHPfVC8S-xDHJAEka2D5wcrq_S_H/exec";
+    var raw = localStorage.getItem('msetcl_login_token');
+    if (!url || !raw) return null;                 // logged out → login screen, nothing to prefetch
+    var tok = JSON.parse(raw);
+    if (!tok || !tok.id) return null;
+    return fetch(url, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain avoids a CORS preflight
+      body: JSON.stringify({ action: 'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1 })
+    }).then(function (r) { return r.text(); })
+      .catch(function () { return null; });        // resolve to null; boot() retries properly
+  } catch (e) { return null; }
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"></noscript>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"></noscript>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app"></div>
+<!-- Boot splash: styles are inline and self-contained so this paints on the
+     browser's FIRST pass, without waiting for styles.css, the fonts, or the
+     app script. Removed by the first render(). -->
+<div id="boot-splash" style="position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0F2044;color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;transition:opacity .28s ease">
+  <div style="width:46px;height:46px;border:3px solid rgba(255,255,255,.22);border-top-color:#D4AF37;border-radius:50%;animation:bootspin .8s linear infinite"></div>
+  <div style="text-align:center;line-height:1.5">
+    <div style="font-weight:700;font-size:16px;letter-spacing:.01em">Estimation and Proposal Management</div>
+    <div style="font-size:12.5px;opacity:.62;margin-top:4px">EHV Substation Engineering · MSETCL</div>
+  </div>
+  <style>@keyframes bootspin{to{transform:rotate(360deg)}}</style>
+</div>
+<script>
+// Fade the splash out as soon as the app has painted something real.
+window.__hideBootSplash = function () {
+  var el = document.getElementById('boot-splash');
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(function () { el.remove(); }, 300);
+};
+// Hard safety net — never let the splash trap the user if boot throws.
+setTimeout(function () { window.__hideBootSplash(); }, 12000);
+</script>
 <script>
 const APPS_SCRIPT_CODE = `// ═══════════════════════════════════════════════════════════════
 // MSETCL Estimate Generator – Google Apps Script Backend v5
@@ -1386,6 +1435,7 @@ function compressImageFile(file, quality=0.5, maxDim=1600) {
 
 async function boot() {
   if (!SURL) {
+    if (window.__hideBootSplash) window.__hideBootSplash();
     renderSetupScreen();
     return;
   }
@@ -1393,15 +1443,28 @@ async function boot() {
   if (saved) {
     try {
       const tok = JSON.parse(saved);
-      const res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash});
+      // Prefer the response already in flight from the head script. It carries
+      // the session check AND the Home payload, so a warm boot costs ONE round
+      // trip instead of two serial ones. Any miss falls back to the old path.
+      let res = null;
+      if (window.__EARLY_BOOT) {
+        try {
+          const txt = await window.__EARLY_BOOT;
+          if (txt && !txt.trim().startsWith('<')) res = JSON.parse(txt);
+        } catch (e) { res = null; }
+      }
+      if (!res) res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1});
       if (res.ok) {
         ST.user = res.user;
-        await enterApp();
+        // res carries the bootstrap payload when the backend supports it;
+        // enterApp falls back to fetching it itself when it doesn't.
+        await enterApp(res.estimates !== undefined ? res : null);
         return;
       }
     } catch(e) { /* fall through to login screen */ }
     localStorage.removeItem(TOKEN_KEY);
   }
+  if (window.__hideBootSplash) window.__hideBootSplash();
   renderAuthScreen();
 }
 
@@ -1476,7 +1539,7 @@ function showSetupScriptHelp() {
   `, true);
 }
 
-async function enterApp() {
+async function enterApp(preloadedBoot) {
   renderAppShell();
   showPageLoading();
   try {
@@ -1485,7 +1548,9 @@ async function enterApp() {
     // so combining them into one request is the bigger win for boot speed.
     // FIRST LOAD: fetch only what Home needs. Everything else is fetched
     // on demand by the page that uses it.
-    const boot = await api('bootstrap', {userId: ST.user.id, role: ST.user.role, lite: '1'});
+    // preloadedBoot arrives already merged into the login response (one round
+    // trip); only fetch separately when that wasn't available.
+    const boot = preloadedBoot || await api('bootstrap', {userId: ST.user.id, role: ST.user.role, lite: '1'});
     if (!boot.ok) throw new Error(boot.error || 'Failed to load app data');
 
     ST.sorVersions = boot.sorVersions||[];
@@ -1509,8 +1574,10 @@ async function enterApp() {
     // background; pages that need them await ST.sorReady.
     ST.bootDone = true;
     navigateTo('dashboard');
+    if (window.__hideBootSplash) window.__hideBootSplash();
     ST.sorReady = loadSorData();
   } catch(e) {
+    if (window.__hideBootSplash) window.__hideBootSplash();
     toast('Failed to load app data: '+e.message, 'err', 6000);
     document.getElementById('main-content').innerHTML = `
       <div class="empty-state">
@@ -1642,13 +1709,15 @@ async function doLogin() {
   btn.innerHTML = '<span class="spinner"></span> Logging in…'; btn.disabled = true;
   try {
     const passHash = hashPass(pass);
-    const res = await apiPost({action:'loginUser', id, passHash});
+    // withBoot folds the Home payload into the login response, so a manual
+    // login also lands on the dashboard in a single round trip.
+    const res = await apiPost({action:'loginUser', id, passHash, withBoot: 1, lite: 1});
     if (!res.ok) { errEl.textContent = res.error||'Login failed.'; errEl.style.display='block'; return; }
     ST.user = res.user;
     const stay = document.getElementById('stay-toggle').classList.contains('on');
     if (stay) localStorage.setItem(TOKEN_KEY, JSON.stringify({id, passHash}));
     toast(`Welcome back, ${res.user.name}`, 'ok');
-    await enterApp();
+    await enterApp(res.estimates !== undefined ? res : null);
   } catch(e) {
     errEl.textContent = e.message; errEl.style.display='block';
   } finally {
@@ -2232,7 +2301,8 @@ async function createEstimateCopy(id) {
       supplySpares: sourceEst.supplySpares
     };
     ST.currentItems = rematched.map(r => ({
-      item_no: r.item_no, version: r.version, description: r.description, uom: r.uom,
+      item_no: r.item_no, version: r.version, description: r.description,
+      fullDescription: r.fullDescription||'', uom: r.uom,
       rate: r.rate, qty: r.qty, section: r.section, remarks: r.remarks||'', isCustom: r.isCustom
     }));
 
@@ -2253,7 +2323,7 @@ function rematchItemAgainstCurrentCatalog(item, latestVersion) {
   if (latestVersion) {
     const inLatest = ST.sorCache.find(s => s.item_no===item.item_no && s.version===latestVersion);
     if (inLatest) {
-      return {...inLatest, qty: item.qty, remarks: item.remarks||'', isCustom: false, version: latestVersion};
+      return {...inLatest, qty: item.qty, fullDescription: item.fullDescription||'', remarks: item.remarks||'', isCustom: false, version: latestVersion};
     }
   }
   // 2. Any older SOR version, exact item_no (prefer the most recent among matches)
@@ -2261,7 +2331,7 @@ function rematchItemAgainstCurrentCatalog(item, latestVersion) {
   if (olderMatches.length) {
     const best = [...olderMatches].sort((a,b)=>versionSortKey(b.version)-versionSortKey(a.version))[0];
     return {
-      ...best, qty: item.qty, isCustom: false,
+      ...best, qty: item.qty, fullDescription: item.fullDescription||'', isCustom: false,
       remarks: `Carried forward from older SOR version "${best.version}" — not present in the latest SOR. ${item.remarks||''}`.trim(),
       _fromOlderVersion: true
     };
@@ -2269,12 +2339,13 @@ function rematchItemAgainstCurrentCatalog(item, latestVersion) {
   // 3. Non-SOR catalog, exact item_no
   const inNonSor = ST.nonSorCache.find(n => n.item_no===item.item_no);
   if (inNonSor) {
-    return {...inNonSor, qty: item.qty, version:'NONSOR', isCustom: true, remarks: item.remarks||inNonSor.remarks||''};
+    return {...inNonSor, qty: item.qty, fullDescription: item.fullDescription||'', version:'NONSOR', isCustom: true, remarks: item.remarks||inNonSor.remarks||''};
   }
   // 4. Not found anywhere — auto-create as a new Non-SOR entry, preserving
   // the original item's data, with the exact requested remark text.
   return {
-    item_no: item.item_no, description: item.description, uom: item.uom, rate: item.rate,
+    item_no: item.item_no, description: item.description, fullDescription: item.fullDescription||'',
+    uom: item.uom, rate: item.rate,
     qty: item.qty, section: item.section, version: 'NONSOR', isCustom: true,
     remarks: 'Entry put in non sor item list as latest sor misses the item. Search for suitable PO / WO',
     _autoCreated: true, _needsPersist: true
@@ -4323,8 +4394,14 @@ function sectionItemTableRows(key) {
   const hasLC  = (rates.labourCess||0) > 0;
   const hasFI  = cfg.hasFI && (rates.freightInsurance||0) > 0;
   const hasGST = (rates.gst||0) > 0;
-  const headers = ['Sr.No.','Material/Service No','Description','UoM','Quantity',
-    'Exworks Price (₹)','Total Ex-works Price excl. T&D (₹)'];
+  // ZEST03 carries a separate "Mat / Serv Full Description" alongside the short
+  // description. It is surfaced as its own column immediately to the RIGHT of
+  // Description — but only when at least one item in the section actually has
+  // one, so ordinary (non-ZEST03) estimates keep their original layout.
+  const hasFull = cfg.items.some(it => String(it.fullDescription||'').trim() !== '');
+  const headers = ['Sr.No.','Material/Service No','Description'];
+  if (hasFull) headers.push('Mat / Service Full Description');
+  headers.push('UoM','Quantity','Exworks Price (₹)','Total Ex-works Price excl. T&D (₹)');
   if (acApplied) headers.push('Extra Charge (%)','Total incl. Additional Charge');
   if (hasLC) headers.push('Labour Cess @ '+rates.labourCess+'%','Ex-Works + Labour Cess');
   if (hasFI) headers.push('Freight & Insurance @ '+rates.freightInsurance+'%','(Ex-Works+LC) + F&I');
@@ -4336,7 +4413,9 @@ function sectionItemTableRows(key) {
   cfg.items.forEach((it, i)=>{
     const c = calcItem(it, rates, cfg.acKey);
     // Material/Service No kept as text so it never gets comma grouping.
-    const row = [i+1, String(it.item_no||''), it.description, it.uom, it.qty, it.rate, c.base];
+    const row = [i+1, String(it.item_no||''), it.description];
+    if (hasFull) row.push(String(it.fullDescription||''));
+    row.push(it.uom, it.qty, it.rate, c.base);
     if (acApplied) row.push(c.ac>0?(rates.additionalCharge||0):0, c.base+c.ac);
     if (hasLC) row.push(c.lc, c.base+c.ac+c.lc);
     if (hasFI) row.push(c.fi, c.base+c.ac+c.lc+c.fi);
@@ -4351,10 +4430,11 @@ function sectionItemTableRows(key) {
   });
   if (cfg.items.length) {
     // TOTAL row — placed precisely under each column whatever columns exist
+    const D = hasFull ? 1 : 0;          // rightward shift caused by Full Description
     const tr = new Array(headers.length).fill('');
     tr[2] = 'TOTAL';
-    tr[6] = sum.base;
-    let idx = 7;
+    tr[6+D] = sum.base;
+    let idx = 7+D;
     if (acApplied) { tr[idx+1] = sum.baseAc; idx += 2; }
     if (hasLC) { tr[idx] = sum.lc; tr[idx+1] = sum.exLc; idx += 2; }
     if (hasFI) { tr[idx] = sum.fi; tr[idx+1] = sum.exFi; idx += 2; }
@@ -4548,6 +4628,10 @@ async function exportEstimateExcel() {
     const t = sectionTotalsCalc(key);
     const rateSet = effectiveRates();
     const descCol = 2, valueCol = N - 2, statusCol = N - 1;   // last col = SoR status
+    // Full Description (ZEST03) sits right of Description and pushes every
+    // amount column one to the right — resolve both by header, never by index.
+    const fullCol = H.findIndex(h=>/full\s*description/i.test(String(h)));
+    const amtCol0 = (()=>{ const i = H.findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
     const mk = () => new Array(N).fill('');
 
     // TOTAL row — title only (merged Description→GST), GST total at value col
@@ -4607,12 +4691,13 @@ async function exportEstimateExcel() {
     // zebra + description-left on item rows only
     for (let i=itemStart;i<=itemEnd;i++){
       if ((i-itemStart)%2===1) for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
-      const dd=XLSXmod.utils.encode_cell({r:i,c:descCol}); if(ws[dd]){ ws[dd].s=ws[dd].s||{}; ws[dd].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[dd].s.alignment,{horizontal:'left'}); }
+      [descCol, fullCol].forEach(dc=>{ if (dc<0) return;
+        const dd=XLSXmod.utils.encode_cell({r:i,c:dc}); if(ws[dd]){ ws[dd].s=ws[dd].s||{}; ws[dd].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[dd].s.alignment,{horizontal:'left'}); } });
     }
 
     // ₹ Indian grouping on the value column (TOTAL + calc rows) and item amount cols
     const fmtAmt = (r,c)=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad] && typeof ws[ad].v==='number'){ ws[ad].s=ws[ad].s||{}; ws[ad].s.numFmt=rupeeNumFmt(ws[ad].v); ws[ad].s.alignment=Object.assign({vertical:'center',horizontal:'center'},ws[ad].s.alignment); ws[ad].s.border=LUXE_BORDER_ALL; } };
-    for (let r=itemStart;r<=itemEnd;r++) for (let c=5;c<N;c++) fmtAmt(r,c);
+    for (let r=itemStart;r<=itemEnd;r++) for (let c=amtCol0;c<N;c++) fmtAmt(r,c);
     fmtAmt(totalIdx, valueCol);
     for (let i=calcStart;i<=calcEnd;i++) fmtAmt(i, valueCol);
 
@@ -4657,7 +4742,7 @@ async function exportEstimateExcel() {
     // ---- widths (content-fitted; amount cols sized to formatted value, no ###) ----
     applySmartColWidths(ws, rows);
     ws['!cols'] = ws['!cols'] || [];
-    for (let ci=5; ci<N; ci++){
+    for (let ci=amtCol0; ci<N; ci++){
       let maxLen = 6;
       for (let r=0;r<rows.length;r++){ const ad=XLSXmod.utils.encode_cell({r,c:ci}); const cell=ws[ad]; if(cell && typeof cell.v==='number'){ const txt='₹'+fmtNum(cell.v); if(txt.length>maxLen) maxLen=txt.length; } }
       ws['!cols'][ci] = { wch: (ws['!cols'][ci]&&ws['!cols'][ci].wch?Math.max(ws['!cols'][ci].wch,maxLen+2):maxLen+2) };
@@ -4669,7 +4754,11 @@ async function exportEstimateExcel() {
       if(/quantity|qty/.test(head)) col.wch=Math.max(col.wch||8,9);
       if(/freight|f&i|insurance/.test(head)) col.wch=Math.max(9,col.wch||10);
       if(/total amount including gst|incl.*gst|total.*gst/.test(head)) col.wch=Math.max(col.wch||14,16);
-      if(/description/.test(head)) col.wch=Math.max(col.wch||20,42);                // wide, wraps → taller rows
+      // Description base width is 42. With ZEST03's Full Description present,
+      // Description drops to 80% (33.6) and Full Description takes 150% (63).
+      if(/full\s*description/.test(head)) col.wch = 63;                             // 150% of 42
+      else if(/description/.test(head)) col.wch = fullCol>-1 ? 33.6                 // 80% of 42
+                                               : Math.max(col.wch||20,42);         // wide, wraps → taller rows
       if(/sor status|status/.test(head)) col.wch=Math.max(col.wch||10,12);
     });
 
@@ -4898,9 +4987,20 @@ function pdfTableNode(headers, rows, opt){
   // when scaling DOWN, protect non-text (numeric) columns and take the
   // reduction from the capped text columns first
   const isStar = (i)=> opt.starCol && opt.starCol(i);
+  // opt.starRatio lets the caller pin the relative share of the text columns
+  // (e.g. Description 0.8 : Full Description 1.5) instead of letting content
+  // length decide it. Without it, behaviour is exactly as before.
+  const starShare = (i)=> opt.starRatio ? Math.max(+opt.starRatio(i)||1, 0.05) : pt[i];
+  const starSum = pt.reduce((a,w,i)=> a + (isStar(i)?starShare(i):0), 0) || 1;
   let widths;
   if (scale >= 1) {
-    widths = pt.map((w,i)=> isStar(i) ? '*' : w); // spare width → text cols
+    if (opt.starRatio) {
+      const fixedSum = pt.reduce((a,w,i)=> a + (isStar(i)?0:w), 0);
+      const avail = Math.max(pageW - fixedSum, 80);
+      widths = pt.map((w,i)=> isStar(i) ? Math.max(starShare(i)/starSum*avail, 40) : w);
+    } else {
+      widths = pt.map((w,i)=> isStar(i) ? '*' : w); // spare width → text cols
+    }
   } else {
     // Keep NUMERIC columns at full width (never crop a number); take the
     // reduction only from text/description columns.
@@ -4908,7 +5008,7 @@ function pdfTableNode(headers, rows, opt){
     const textSum  = pt.reduce((a,w,i)=> a + (isStar(i)?w:0), 0) || 1;
     const avail = pageW - fixedSum;
     if (avail > textSum*0.35) {
-      widths = pt.map((w,i)=> isStar(i) ? Math.max(w/textSum*avail, 40) : w);
+      widths = pt.map((w,i)=> isStar(i) ? Math.max(starShare(i)/starSum*avail, 40) : w);
     } else {
       // too many numeric columns to keep full — fall back to global scale
       widths = pt.map(w => Math.max(w*scale, 16));
@@ -4959,7 +5059,16 @@ function estimatePdfContent(e){
     const feW = (typeof FE!=='undefined' && FE.attachRaw && FE.colWidths) ? FE.colWidths[def[0]] : null;
     const prNo = pmoPrForSection(e, def[0]==='supply'?['supply']:def[0]==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
     content.push(pdfBand(def[1] + (prNo?'   —   PR No.: '+prNo:''), 12, 'left', 'before'));
-    content.push(pdfTableNode(headers, body, { starCol:(i)=>i===2, rupeeCol:(i)=>i>=5, totalRow:(r)=> r[2]==='TOTAL', fs: headers.length>=12?7:8, weights: feW }));
+    // Full Description (ZEST03) wraps like Description and shifts the amount
+    // columns right — resolve both from the un-abbreviated header row.
+    const H0 = rows[0];
+    const fullIdx = H0.findIndex(h=>/full\s*description/i.test(String(h)));
+    const amt0 = (()=>{ const i = H0.findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
+    content.push(pdfTableNode(headers, body, {
+      starCol:(i)=> i===2 || i===fullIdx,
+      starRatio: fullIdx>-1 ? ((i)=> i===fullIdx ? 1.5 : 0.8) : null,
+      rupeeCol:(i)=>i>=amt0, totalRow:(r)=> r[2]==='TOTAL',
+      fs: headers.length>=12?7:8, weights: feW }));
     // audit-style totals summary (mirrors the webpage totals box)
     const t = sectionTotalsCalc(def[0]); const rs = effectiveRates();
     const sum = [['Base Cost (Ex-works excl. T&D)', t.base]];
@@ -5054,11 +5163,25 @@ async function printEstimate(orientation){
     if (!sectionConfig(k).items.length) return;
     const rows = sectionItemTableRows(k);
     const n = rows[0].length;
-    const sw = new Array(n).fill(0); sw[2] = 30; const rest = (100-30)/(n-1);
-    for (let i=0;i<n;i++) if (i!==2) sw[i] = +rest.toFixed(2);
+    const fullIdx = rows[0].findIndex(h=>/full\s*description/i.test(String(h)));
+    const amt0 = (()=>{ const i = rows[0].findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
+    // Description holds 30% on its own; with ZEST03's Full Description present
+    // the pair splits 80 : 150 (24% / 45%), scaled back proportionally if that
+    // would squeeze the numeric columns below a legible floor.
+    const sw = new Array(n).fill(0);
+    let dW = 30, fW = 0;
+    if (fullIdx > -1) { dW = 24; fW = 45; }
+    const others = n - (fullIdx>-1 ? 2 : 1);
+    let rest = (100 - dW - fW) / others;
+    const MIN_COL = 3.6;
+    if (rest < MIN_COL) {
+      const avail = Math.max(100 - MIN_COL*others, 20), tot = dW + fW;
+      dW = avail*dW/tot; fW = avail*fW/tot; rest = MIN_COL;
+    }
+    for (let i=0;i<n;i++) sw[i] = +(i===2 ? dW : (i===fullIdx ? fW : rest)).toFixed(2);
     const prNo = pmoPrForSection(e, (k==='supply'||k==='nonsor_supply')?['supply']:k==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
     // Header banner repeats at the top of every page, exactly like the sheets.
-    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=5, widths:sw, leftCol:(i)=>i===2})}${sigHtml}</div>`;
+    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=amt0, widths:sw, leftCol:(i)=>i===2||i===fullIdx})}${sigHtml}</div>`;
   });
   root.innerHTML = html;
   doPrintAndCleanup(root);
@@ -5154,6 +5277,7 @@ function sharedPrintCSS() {
 const PDF_HEADER_ABBR = {
   'Sr.No.':'Sr.',
   'Material/Service No':'Mat/Serv No',
+  'Mat / Service Full Description':'Mat / Serv Full Description',
   'Quantity':'Qty',
   'Exworks Price (Rs.)':'Ex-works ₹',
   'Total Ex-works Price excl. T&D (Rs.)':'Total Ex-works ₹',
@@ -8135,7 +8259,10 @@ async function aicZestUpload(evt){
           if (ns) { source='nonsor'; desc=ns.description||desc; uom=ns.uom||uom; section=ns.section||sec; rate=useLatest?(ns.rate||0):price; }
           else { source='estimated'; remark='Not in SOR/Non-SOR catalog — a Non-SOR entry may be needed'; missing++; }
         }
-        items.push({ item_no:String(it.matNo), description:desc, uom, qty:Number(it.qty)||1, rate, section, source, remark });
+        // Catalog descriptions stay authoritative; the ZEST03 full description
+        // is carried alongside them, never merged into the short description.
+        const fullDesc = String(it.desc||'').trim() ? String(it.full||'') : '';
+        items.push({ item_no:String(it.matNo), description:desc, fullDescription:fullDesc, uom, qty:Number(it.qty)||1, rate, section, source, remark });
       });
     });
     if (!items.length) throw new Error('No classifiable items found in the ZEST03 sheet.');
@@ -8192,7 +8319,8 @@ function confirmAicDraftToEstimate() {
   }
   ST.currentItems = AIC.draftItems.map(it => ({
     item_no: it.item_no, version: it.source==='sor' ? (resolveDefaultVersion()||'') : 'NONSOR',
-    description: it.description, uom: it.uom, rate: it.rate, qty: it.qty,
+    description: it.description, fullDescription: it.fullDescription||'',
+    uom: it.uom, rate: it.rate, qty: it.qty,
     section: it.section, remarks: it.remark||'', isCustom: it.source!=='sor'
   }));
   const missing = AIC.draftItems.filter(it => it.source==='estimated');
@@ -8657,6 +8785,9 @@ function feBuildSyntheticEstimate(){
   const res = FE.result, m = res.meta;
   const mk = (arr, section)=> arr.map(it=>({
     section, item_no:String(it.matNo), description:it.desc||it.full, uom:it.uom,
+    // ZEST03's "Mat / Serv Full Description", carried verbatim. Only suppressed
+    // when the short description column was empty and already fell back to it.
+    fullDescription: String(it.desc||'').trim() ? String(it.full||'') : '',
     qty:it.qty, rate:it.exworks, isCustom:false,
   }));
   const items = [].concat(mk(res.supply,'supply'), mk(res.project,'project'), mk(res.om,'om'));
@@ -8709,7 +8840,8 @@ function feWithSynthetic(cb){
 // Build an FE result straight from an estimate's own saved items (used when
 // the estimate has no stored ZEST03 sheet).
 function feBuildFromItems(items, e){
-  const mk = (it)=>({ pr:'', matNo:String(it.item_no||''), desc:it.description||'', full:it.description||'',
+  const mk = (it)=>({ pr:'', matNo:String(it.item_no||''), desc:it.description||'',
+                      full:it.fullDescription||it.full_description||'',
                       uom:it.uom||'', qty:Number(it.qty)||0, exworks:Number(it.rate)||0 });
   const g = { supply:[], project:[], om:[] };
   (items||[]).forEach(it=>{
@@ -8932,7 +9064,9 @@ function feSetColWidth(secKey, colIdx, val){
   }
 }
 function feWidthEditorHtml(secKey, headers){
-  const ws = (FE.colWidths && FE.colWidths[secKey]) || [];
+  const saved = (FE.colWidths && FE.colWidths[secKey]) || [];
+  // Widths saved before the Full Description column existed no longer line up.
+  const ws = (saved.length === headers.length) ? saved : [];
   return `
     <div class="collapse" style="margin-top:8px">
       <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">📏 Adjust Column Widths</span><span class="chev">▸</span></div>
@@ -8966,14 +9100,21 @@ function renderFinalEstimateResult(){
   }));
   const secTbl = (secKey, rows) => {
     const head = rows[0], body = rows.slice(1);
-    const ws = (FE.colWidths && FE.colWidths[secKey]) || [];
+    const fullIdx = head.findIndex(h=>/full\s*description/i.test(String(h)));
+    const amt0 = (()=>{ const i = head.findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
+    // Saved widths from before the Full Description column existed would be
+    // off by one — discard any set whose length no longer matches the table.
+    const saved = (FE.colWidths && FE.colWidths[secKey]) || [];
+    let ws = (saved.length === head.length) ? saved : [];
+    // Default weights: every column 4, Description 80% (3.2), Full Desc 150% (6).
+    if (!ws.length && fullIdx > -1) ws = head.map((_,i)=> i===2 ? 3.2 : (i===fullIdx ? 6 : 4));
     const tw = ws.length ? ws.reduce((a,b)=>a+(+b||1),0) : 0;
     const cg = `<colgroup id="fe-cg-${secKey}">${head.map((_,i)=>`<col style="${tw?`width:${((+ws[i]||1)/tw*100)}%`:''}">`).join('')}</colgroup>`;
     return `<div class="table-wrap"><table class="fe-preview" style="table-layout:${tw?'fixed':'auto'}">${cg}
       <thead><tr>${head.map(hd=>`<th>${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
       <tbody>${body.map(r=>{
         const isTot = r[2]==='TOTAL';
-        return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}">${typeof c==='number'?((i>=5?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
+        return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${i===2||i===fullIdx?' fe-desc-cell':''}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
   let html = `
@@ -9001,7 +9142,7 @@ function renderFinalEstimateResult(){
   if (res.notFound.length){
     html += `<div class="card" style="margin-bottom:14px"><h3>⚠ Items Not Classified <span class="badge badge-neutral">${res.notFound.length}</span></h3>
       <p class="hint">These material numbers didn't match any Supply / ETC / O&M pattern and are excluded.</p>
-      ${tbl([['Material No','Description','UoM','Qty','Exworks']].concat(res.notFound.map(it=>[String(it.matNo), it.desc||it.full, it.uom, it.qty, it.exworks])), true)}</div>`;
+      ${tbl([['Material No','Description','Mat / Service Full Description','UoM','Qty','Exworks']].concat(res.notFound.map(it=>[String(it.matNo), it.desc||it.full, (String(it.desc||'').trim()?String(it.full||''):''), it.uom, it.qty, it.exworks])), true)}</div>`;
   }
   zone.innerHTML = html;
 }
@@ -9075,41 +9216,39 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(function(){ s.remove(); }, 620);
   }, {passive:true});
 
-  /* ── 2. Custom cursor glow (desktop only) ──────────────────────────────── */
+  /* ── 2+3. Cursor glow + magnetic gold CTAs (desktop only) ──────────────
+     These were two separate pointermove listeners, each running its own
+     closest() walk on every single mouse move, and the magnetic one also ran
+     a document-wide querySelectorAll every frame. Merged into ONE listener
+     doing one rAF per frame, with the pulled button held in a variable
+     instead of re-queried. Same behaviour, a fraction of the work. */
   if(FINE && !REDUCE){
     var cur = document.createElement('div'); cur.id = 'lux-cursor';
     document.body.appendChild(cur); document.body.classList.add('lux-cursor-on');
-    var cx=0, cy=0, pending=false;
+    var HOT_SEL = '.btn,.nav-item,.mnav-item,.est-card,.user-pill,a,.tab';
+    var cx=0, cy=0, tick=false, pulled=null;
     document.addEventListener('pointermove', function(e){
       cx=e.clientX; cy=e.clientY;
-      if(!pending){ pending=true; raf(function(){ cur.style.transform='translate('+cx+'px,'+cy+'px) translate(-50%,-50%)'; pending=false; }); }
-      var hot = e.target.closest && e.target.closest('.btn,.nav-item,.mnav-item,.est-card,.user-pill,a,.tab');
-      cur.classList.toggle('hot', !!hot);
-    }, {passive:true});
-    document.addEventListener('pointerleave', function(){ cur.style.opacity=0; });
-    document.addEventListener('pointerenter', function(){ cur.style.opacity=''; });
-  }
-
-  /* ── 3. Magnetic gold CTAs (delegated, desktop only) ───────────────────── */
-  if(FINE && !REDUCE){
-    var magTick=false, magEv=null;
-    document.addEventListener('pointermove', function(e){
-      magEv=e;
-      if(magTick) return; magTick=true;
+      if(tick) return; tick=true;
       raf(function(){
-        magTick=false;
-        var b = magEv.target.closest && magEv.target.closest('.btn-gold');
-        // reset any previously pulled button that we left
-        document.querySelectorAll('.btn-gold[data-pull]').forEach(function(o){
-          if(o!==b){ o.style.transform=''; o.removeAttribute('data-pull'); }
-        });
+        tick=false;
+        cur.style.transform='translate('+cx+'px,'+cy+'px) translate(-50%,-50%)';
+        var el = document.elementFromPoint(cx, cy);
+        if(!el || !el.closest){ if(pulled){ pulled.style.transform=''; pulled=null; } return; }
+        cur.classList.toggle('hot', !!el.closest(HOT_SEL));
+        var b = el.closest('.btn-gold');
+        if(pulled && pulled!==b){ pulled.style.transform=''; pulled=null; }
         if(!b) return;
         var r=b.getBoundingClientRect();
-        var mx=magEv.clientX-(r.left+r.width/2), my=magEv.clientY-(r.top+r.height/2);
-        b.style.transform='translate('+(mx*0.18)+'px,'+(my*0.28)+'px)';
-        b.setAttribute('data-pull','1');
+        b.style.transform='translate('+((cx-(r.left+r.width/2))*0.18)+'px,'+((cy-(r.top+r.height/2))*0.28)+'px)';
+        pulled=b;
       });
     }, {passive:true});
+    document.addEventListener('pointerleave', function(){
+      cur.style.opacity=0;
+      if(pulled){ pulled.style.transform=''; pulled=null; }
+    });
+    document.addEventListener('pointerenter', function(){ cur.style.opacity=''; });
   }
 
   /* ── 4. Scroll-reveal observer ─────────────────────────────────────────── */
