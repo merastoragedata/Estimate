@@ -26,7 +26,7 @@ window.__EARLY_BOOT = (function () {
     return fetch(url, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain avoids a CORS preflight
-      body: JSON.stringify({ action: 'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 0 })
+      body: JSON.stringify({ action: 'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1 })
     }).then(function (r) { return r.text(); })
       .catch(function () { return null; });        // resolve to null; boot() retries properly
   } catch (e) { return null; }
@@ -1527,8 +1527,15 @@ async function boot() {
           if (txt && !txt.trim().startsWith('<')) res = JSON.parse(txt);
         } catch (e) { res = null; }
       }
-      if (!res) res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 0});
-      if (res.ok) {
+      // A combined login+boot reply can come back ok:true yet carry no user
+      // (an older backend, a truncated reply, a bootstrap-shaped payload).
+      // Trusting ok alone left ST.user undefined and renderAppShell then threw
+      // "Cannot read properties of undefined (reading 'name')". Re-request
+      // properly instead of proceeding with no user.
+      if (!res || !res.user) {
+        res = await apiPost({action:'loginUser', id: tok.id, passHash: tok.passHash, withBoot: 1, lite: 1});
+      }
+      if (res.ok && res.user) {
         ST.user = res.user;
         // res carries the bootstrap payload when the backend supports it;
         // enterApp falls back to fetching it itself when it doesn't.
@@ -1686,6 +1693,12 @@ async function enterApp(preloadedBoot) {
     navigateTo('dashboard');
     if (window.__hideBootSplash) window.__hideBootSplash();
     ST.sorReady = loadSorData();
+    // Everything else (Non-SOR catalog, T-Codes, Processes, user list) is
+    // pulled straight away — but in the BACKGROUND, after the dashboard is
+    // already usable. Putting it in the blocking login call made a single
+    // Apps Script execution do every sheet read at once, which is what turned
+    // login into a multi-minute wait.
+    setTimeout(backgroundRefresh, 0);
     startBackgroundRefresh();
   } catch(e) {
     if (window.__hideBootSplash) window.__hideBootSplash();
@@ -1822,8 +1835,12 @@ async function doLogin() {
     const passHash = hashPass(pass);
     // withBoot folds the Home payload into the login response, so a manual
     // login also lands on the dashboard in a single round trip.
-    const res = await apiPost({action:'loginUser', id, passHash, withBoot: 1, lite: 0});
+    const res = await apiPost({action:'loginUser', id, passHash, withBoot: 1, lite: 1});
     if (!res.ok) { errEl.textContent = res.error||'Login failed.'; errEl.style.display='block'; return; }
+    if (!res.user) {
+      errEl.textContent = 'Signed in, but the server sent no user details. Please try again.';
+      errEl.style.display='block'; return;
+    }
     ST.user = res.user;
     const stay = document.getElementById('stay-toggle').classList.contains('on');
     if (stay) localStorage.setItem(TOKEN_KEY, JSON.stringify({id, passHash}));
@@ -1914,7 +1931,8 @@ const NAV_ITEMS = [
 ];
 
 function renderAppShell() {
-  const initials = (ST.user.name||ST.user.id).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const u = ST.user || {};                       // never assume a user is present
+  const initials = String(u.name||u.id||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   const navList = NAV_ITEMS.filter(n=>(!n.adminOnly||isAdmin()) && (!n.aiOnly||ST.aiAllowed||isAdmin()));
   document.getElementById('app').innerHTML = `
     <div class="topbar">
@@ -1924,7 +1942,7 @@ function renderAppShell() {
         <div class="role-chip">${ST.user.role}</div>
         <button class="user-pill" onclick="toggleUserMenu()">
           <div class="avatar">${escapeHtml(initials)}</div>
-          <span style="font-size:13px;font-weight:600">${escapeHtml(ST.user.name)}</span>
+          <span style="font-size:13px;font-weight:600">${escapeHtml(u.name||u.id||"")}</span>
           <span style="font-size:10px">▾</span>
         </button>
       </div>
@@ -1959,7 +1977,7 @@ function toggleUserMenu() {
   zone.innerHTML = `
     <div style="position:fixed; top:54px; right:16px; z-index:60; background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); border:1px solid var(--line); min-width:200px; overflow:hidden; animation:modalIn .2s var(--ease-out)">
       <div style="padding:12px 14px; border-bottom:1px solid var(--line)">
-        <div class="fw-700 text-sm">${escapeHtml(ST.user.name)}</div>
+        <div class="fw-700 text-sm">${escapeHtml(u.name||u.id||"")}</div>
         <div class="text-xs text-muted">${escapeHtml(ST.user.id)} · ${ST.user.role}</div>
       </div>
       <button class="nav-item" style="color:var(--ink); padding:10px 14px;" onclick="closeUserMenu(); openChangePasswordModal()">🔑 Change Password</button>
@@ -4077,7 +4095,7 @@ function supplySparesAmount() {
   return supplySparesApplies() ? supplySparesBase() * 0.03 : 0;
 }
 
-function sectionTotalsCalc(key, itemsOverride) {
+function sectionTotalsCalc(key, itemsOverride, opts) {
   const cfg0 = sectionConfig(key);
   const cfg = itemsOverride ? Object.assign({}, cfg0, {items: itemsOverride}) : cfg0;
   let base=0, ac=0, lc=0, fi=0, gst=0, total=0;
@@ -4085,7 +4103,9 @@ function sectionTotalsCalc(key, itemsOverride) {
     const c = calcItem(it, effectiveRates(), cfg.acKey);
     base+=c.base; ac+=c.ac; lc+=c.lc; fi+=c.fi; gst+=c.gst; total+=c.total;
   });
-  const spares = (key==='supply' && !itemsOverride) ? supplySparesAmount() : 0;
+  // Spares belong to the Supply sheet (which now carries SOR + Non-SOR
+  // materials together), never to the derived Non-SOR-only sheet.
+  const spares = (key==='supply' && !(opts && opts.noSpares)) ? supplySparesAmount() : 0;
   return {base, ac, lc, fi, gst, total: total+spares, spares, preSparesTotal: total};
 }
 
@@ -4614,7 +4634,7 @@ function appendRemarksColumn(rows, items){
   });
 }
 
-function sectionItemTableRows(key, itemsOverride) {
+function sectionItemTableRows(key, itemsOverride, opts) {
   const cfg0 = sectionConfig(key);
   // itemsOverride lets a caller build a sheet from a hand-picked set of items
   // while still using this section's charge configuration. The Non-SOR sheets
@@ -4689,7 +4709,7 @@ function sectionItemTableRows(key, itemsOverride) {
     // item total — so words always match the last number above them.
     // Same single definition as the abstract — 3% of Sr. No.1A, which
     // includes Non-SOR materials. Never recompute this locally.
-    const spares = (key === 'supply') ? supplySparesAmount() : 0;
+    const spares = (key === 'supply' && !(opts && opts.noSpares)) ? supplySparesAmount() : 0;
     let grand = sum.total;
     if (spares > 0) {
       const sp = new Array(headers.length).fill('');
@@ -4893,14 +4913,22 @@ async function exportEstimateExcel() {
   // (they are audited separately before the main sheets are signed), and no
   // yellow highlight (the highlight exists to separate Non-SOR from SOR inside
   // the Supply / O&M sheets; on a sheet that is entirely Non-SOR it is noise).
+  // Supply and O&M each carry their SOR items AND their Non-SOR items together,
+  // Non-SOR last and yellow-highlighted. On a regular estimate those Non-SOR
+  // entries sit in the separate nonsor_supply / nonsor_om sections, so they
+  // have to be merged in here or they never reach the sheet at all. On a
+  // ZEST03 estimate they are already inline and the merge is a no-op.
+  const _merge = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items), []);
+  const supplyAll = _merge(['supply','nonsor_supply']);
+  const omAll     = _merge(['om','nonsor_om']);
   const sectionDefs = [
-    {key:'supply',  name:'Supply  Material', pr:_pr.supply},
+    {key:'supply',  name:'Supply  Material', pr:_pr.supply,  items:supplyAll},
     {key:'project', name:'ETC Part',         pr:_pr.project},
-    {key:'om',      name:'Services Part',    pr:_pr.om},
+    {key:'om',      name:'Services Part',    pr:_pr.om,      items:omAll},
     {key:'supply',  name:'Non SOR Materials', pr:_pr.supply, items:nsMaterials,
-     remarks:true, noHighlight:true, skipFirstSig:true},
+     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
     {key:'om',      name:'Non SOR Services',  pr:_pr.om,     items:nsServices,
-     remarks:true, noHighlight:true, skipFirstSig:true},
+     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
   ];
   sectionDefs.forEach(def => {
     const key = def.key, name = def.name, prMatch = def.pr;
@@ -4909,7 +4937,8 @@ async function exportEstimateExcel() {
     if (!srcItems.length) return;
     const prNo = (prMatch && prMatch.number) ? prMatch.number : '';
     const header = estimateHeaderRows(e, prNo);
-    let itemRows = sectionItemTableRows(key, itemsOverride);
+    const secOpts = {noSpares: !!def.noSpares};
+    let itemRows = sectionItemTableRows(key, itemsOverride, secOpts);
     if (def.remarks) itemRows = appendRemarksColumn(itemRows, srcItems);
     const N = itemRows[0].length;
     const H = itemRows[0];
@@ -4917,7 +4946,7 @@ async function exportEstimateExcel() {
     const items = itemRows.slice(1).filter(r => String(r[2])!=='TOTAL'
       && !/^amount in words|^total amount/i.test(String(r[2]||''))
       && !/^add: supply spares|^supply part total/i.test(String(r[2]||'')));
-    const t = sectionTotalsCalc(key, itemsOverride);
+    const t = sectionTotalsCalc(key, itemsOverride, secOpts);
     const rateSet = effectiveRates();
     // Resolve by HEADER, not by offset from the end: the Non-SOR sheets append
     // a Remarks column, which would otherwise shift both of these.
