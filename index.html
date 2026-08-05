@@ -1627,7 +1627,7 @@ function showSetupScriptHelp() {
 // hidden or a request is already in flight. Opening an individual estimate
 // still fetches that estimate fresh — this only refreshes the shared caches.
 let _bgTimer = null, _bgBusy = false;
-const BG_REFRESH_MS = 4 * 60 * 1000;
+const BG_REFRESH_MS = 10 * 60 * 1000;
 function startBackgroundRefresh(){
   if (_bgTimer) clearInterval(_bgTimer);
   _bgTimer = setInterval(backgroundRefresh, BG_REFRESH_MS);
@@ -1639,16 +1639,14 @@ async function backgroundRefresh(){
   if (_bgBusy || document.hidden || !ST.user || !ST.bootDone) return;
   _bgBusy = true;
   try {
-    const boot = await api('bootstrap', {userId: ST.user.id, role: ST.user.role, lite: '0'});
+    // LITE refresh only — the estimate list and rates. Catalogs stay on demand;
+    // re-reading every sheet on a timer is what made the app feel sluggish.
+    const boot = await api('bootstrap', {userId: ST.user.id, role: ST.user.role, lite: '1'});
     if (!boot || !boot.ok) return;
     ST.estimates    = boot.estimates    || ST.estimates;
     ST.chargeRates  = boot.chargeRates  || ST.chargeRates;
     ST.sorVersions  = boot.sorVersions  || ST.sorVersions;
-    ST.nonSorCache  = boot.nonSor       || ST.nonSorCache;
-    ST.tcodes       = boot.tcodes       || ST.tcodes;
-    ST.processes    = boot.processes    || ST.processes;
     if (boot.users) ST.users = boot.users;
-    ST._nonSorLoaded = true;
     // Only repaint the dashboard, and only if that is what is on screen —
     // never yank the page out from under someone mid-edit.
     if (ST.activeTab === 'dashboard' && !ST.currentEstimate) renderActiveTab();
@@ -1693,12 +1691,11 @@ async function enterApp(preloadedBoot) {
     navigateTo('dashboard');
     if (window.__hideBootSplash) window.__hideBootSplash();
     ST.sorReady = loadSorData();
-    // Everything else (Non-SOR catalog, T-Codes, Processes, user list) is
-    // pulled straight away — but in the BACKGROUND, after the dashboard is
-    // already usable. Putting it in the blocking login call made a single
-    // Apps Script execution do every sheet read at once, which is what turned
-    // login into a multi-minute wait.
-    setTimeout(backgroundRefresh, 0);
+    // STEP-BY-STEP loading, deliberately. Nothing else is fetched here.
+    // The Non-SOR catalog, T-Codes and Processes are pulled by the page that
+    // actually needs them (ensureNonSorLoaded / ensureTcpLoaded). Firing a
+    // full bootstrap right after login meant every sheet in the workbook was
+    // read before the user could do anything.
     startBackgroundRefresh();
   } catch(e) {
     if (window.__hideBootSplash) window.__hideBootSplash();
@@ -1755,24 +1752,28 @@ function prefetchRemainingSOR() {
   // well AFTER the app is usable — otherwise a serial run of slow backend
   // calls competes with the user's first interactions and everything feels
   // sluggish. Fires once, late, and only while the tab is visible.
-  if (ST._sorPrefetched) return;
-  ST._sorPrefetched = true;
-  setTimeout(() => {
-    const idle = window.requestIdleCallback || function(fn){ return setTimeout(fn, 800); };
-    idle(async () => {
-      if (document.hidden) return;
-      const latest = resolveLatestVersion(ST.sorVersions);
-      const others = ST.sorVersions.filter(v=>v!==latest);
-      for (const v of others) {
-        if (document.hidden) return;
-        try {
-          const res = await api('getSOR', {version: v});
-          if (res.ok) ST.sorCache = ST.sorCache.concat(res.items||[]);
-        } catch(e) { /* non-critical background prefetch */ }
-        await new Promise(r=>setTimeout(r, 1200));   // breathe between calls
-      }
-    });
-  }, 9000);
+  // DISABLED as a blanket prefetch. Each older SOR version costs a full
+  // sheet read on the backend, and Apps Script runs one execution at a time
+  // per user — so pulling every version in the background queued behind (and
+  // slowed down) everything the user actually did. Versions are now loaded
+  // one at a time, only when an estimate that uses one is opened.
+  return;
+}
+
+// Load a single SOR version on demand, once. This is the step-by-step path:
+// nothing is fetched until something actually needs it.
+const _sorVersionsLoaded = new Set();
+async function ensureSorVersionLoaded(version){
+  if (!version) return true;
+  const latest = resolveLatestVersion(ST.sorVersions);
+  if (version === latest) return ensureSorLoaded();
+  if (_sorVersionsLoaded.has(version)) return true;
+  _sorVersionsLoaded.add(version);
+  try {
+    const res = await api('getSOR', {version});
+    if (res.ok) ST.sorCache = (ST.sorCache||[]).concat(res.items||[]);
+  } catch(e) { _sorVersionsLoaded.delete(version); return false; }
+  return true;
 }
 
 function luxLoaderHTML(label) {
@@ -3804,7 +3805,15 @@ async function renderEstimateWorkspace(id, fromStep2=false) {
 }
 function invalidateEstCache(id){ if (ST.estCache && id) delete ST.estCache[id]; }
 
+// When an estimate is opened, pull only the SOR versions IT uses — not every
+// version in the system.
+function loadSorVersionsForEstimate(e){
+  const vs = (e && Array.isArray(e.sorVersions)) ? e.sorVersions.filter(Boolean) : [];
+  vs.forEach(v => { ensureSorVersionLoaded(v); });
+}
+
 function normalizeLoadedEstimate(e) {
+  loadSorVersionsForEstimate(e);          // fetch only the versions this estimate uses
   e.addCharge = e.addCharge || {supply:'no', project:'no', nonsor_supply:'no'};
   e.settings = e.settings || {};
   e.progress = e.progress || defaultProgress();
@@ -4876,7 +4885,9 @@ async function exportEstimateExcel() {
   }
   aSig.merges.forEach(m=>abs['!merges'].push(m));
   // signatory block + two rows above: white inner gridlines (invisible), black outer box
-  const _aW={style:'thin',color:{rgb:'FFFFFF'}}, _aB={style:'thin',color:{rgb:'000000'}};
+  // hair, not thin — otherwise these verticals render heavier than every
+  // other interior gridline on the sheet.
+  const _aW={style:'hair',color:{rgb:'FFFFFF'}}, _aB={style:'hair',color:{rgb:'000000'}};
   const aSigRows = [aSig.titleRowIdx-2, aSig.titleRowIdx-1, aSig.titleRowIdx, aSig.officeRowIdx];
   aSigRows.forEach((r)=>{ for(let c=0;c<A_COLS;c++){ const ad=XLSXmod.utils.encode_cell({r,c}); if(!abs[ad]) abs[ad]={t:'s',v:''}; abs[ad].s=abs[ad].s||{};
     const b={ top:_aW, bottom:_aW, left:_aW, right:_aW };
@@ -5064,7 +5075,8 @@ async function exportEstimateExcel() {
     // signatory rows + two blank rows above: WHITE inner gridlines (invisible),
     // black outer box only.
     const sigRows = [_sig.titleRowIdx-2, _sig.titleRowIdx-1, _sig.titleRowIdx, _sig.officeRowIdx];
-    const _W={style:'thin',color:{rgb:'FFFFFF'}}, _B={style:'thin',color:{rgb:'000000'}};
+    // hair, to match every other interior gridline (thin read as too bold).
+    const _W={style:'hair',color:{rgb:'FFFFFF'}}, _B={style:'hair',color:{rgb:'000000'}};
     sigRows.forEach((r)=>{ for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r,c}); if(!ws[ad]) ws[ad]={t:'s',v:''}; ws[ad].s=ws[ad].s||{};
       const b={ top:_W, bottom:_W, left:_W, right:_W };
       if(r===sigRows[0]) b.top=_B; if(r===_sig.officeRowIdx) b.bottom=_B;
