@@ -1132,6 +1132,14 @@ body::after{
 .fe-preview{ overflow:visible; }
 .fe-preview .table-wrap, .table-wrap:has(.fe-preview){ overflow-x:auto; }
 .fe-preview tr.fe-total td{ background:#E9EBEE; font-weight:700; color:#1F2937; }
+/* Amount in words — one merged cell across the full table width, set larger
+   and bold so it reads as the closing line of the section. Preview only. */
+.fe-preview tr.fe-words-row td.fe-words{
+  background:#F4F7FC; color:#12203A; font-weight:800; font-size:15px;
+  font-style:italic; letter-spacing:.01em; text-align:left;
+  padding:11px 12px; white-space:normal; word-break:break-word;
+}
+@media (max-width:640px){ .fe-preview tr.fe-words-row td.fe-words{ font-size:13.5px; padding:9px 10px; } }
 .fe-preview tbody tr:nth-child(even) td:not(.fe-total td){ background:#F7F8FA; }
 
 /* ── Rich-text editor (T-Code / Process descriptions) ──────────────────── */
@@ -1194,3 +1202,80 @@ body::after{
 .toggle-mini input:checked + span{ background:var(--gold,#c69a3f); }
 .toggle-mini input:checked + span::before{ transform:translateX(14px); }
 .sig-row.is-hidden{ opacity:.5; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FINAL ESTIMATE — signatory footer + printing the live preview
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Signatory block: black outer box, white inner gridlines — same as Excel. */
+.fe-sig{
+  width:100%; border-collapse:collapse; margin-top:18px;
+  border:1.5px solid #000; table-layout:fixed;
+}
+.fe-sig td{
+  border:1px solid #fff;                  /* invisible divisions, as in the sheet */
+  text-align:center; vertical-align:bottom;
+  padding:16px 8px 8px; font-size:12px; line-height:1.4;
+}
+.fe-sig .fe-sig-title{ font-weight:700; color:#12203A; }
+.fe-sig .fe-sig-office{ color:#1F2937; }
+
+@media print{
+  /* Only the portal prints. */
+  body.fe-printing > *:not(#fe-print-portal){ display:none !important; }
+  body.fe-printing{ background:#fff !important; }
+  #fe-print-portal{ display:block; width:100%; }
+  #fe-print-portal .fe-noprint{ display:none !important; }
+
+  /* One section per page. */
+  #fe-print-portal .fe-print-page{ break-after:page; page-break-after:always; }
+  #fe-print-portal .fe-print-page:last-child{ break-after:auto; page-break-after:auto; }
+
+  /* Cards become plain sheets — no rounding, shadow, or scroll box. */
+  #fe-print-portal .card{
+    border:none !important; box-shadow:none !important; border-radius:0 !important;
+    margin:0 !important; padding:0 !important; background:#fff !important;
+    break-inside:auto; page-break-inside:auto;
+  }
+  #fe-print-portal .table-wrap{
+    overflow:visible !important; border:none !important; border-radius:0 !important;
+  }
+  #fe-print-portal .badge{ border:none; background:none; color:#000; font-weight:600; }
+
+  /* Fit the full column set to the page: fixed layout + a smaller face, and
+     the screen min/max widths released so columns can compress and wrap. */
+  #fe-print-portal .fe-preview{
+    table-layout:fixed; width:100% !important; font-size:8px; border-collapse:collapse;
+  }
+  #fe-print-portal .fe-preview thead{ display:table-header-group; }   /* repeat header per page */
+  #fe-print-portal .fe-preview tr{ break-inside:avoid; page-break-inside:avoid; }
+  #fe-print-portal .fe-preview th,
+  #fe-print-portal .fe-preview td{
+    padding:3px 4px; border:1px solid #B7BEC9;
+    word-break:break-word; overflow-wrap:anywhere; overflow:visible;
+  }
+  #fe-print-portal .fe-preview td.fe-desc-cell, #fe-print-portal .fe-preview th.fe-desc-cell,
+  #fe-print-portal .fe-preview td.fe-full-cell, #fe-print-portal .fe-preview th.fe-full-cell{
+    min-width:0 !important; max-width:none !important;
+  }
+  #fe-print-portal .fe-preview td.num-cell{ min-width:0 !important; white-space:nowrap; }
+  /* Description 80 : Full Description 150, held on paper via colgroup-free
+     percentage hints that fixed layout honours. */
+  #fe-print-portal .fe-preview th.fe-desc-cell{ width:14%; }
+  #fe-print-portal .fe-preview th.fe-full-cell{ width:26.25%; }
+
+  /* The merged words line stays prominent on paper too. */
+  #fe-print-portal .fe-preview tr.fe-words-row td.fe-words{
+    font-size:10px; font-weight:800; font-style:italic; padding:6px 6px;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  #fe-print-portal .fe-preview tr.fe-total td{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  /* Signatories sit at the foot of each page, never split. */
+  #fe-print-portal .fe-sig{
+    break-inside:avoid; page-break-inside:avoid; margin-top:14px; font-size:9px;
+  }
+  #fe-print-portal .fe-sig td{ padding:14px 4px 4px; font-size:9px; }
+
+  #fe-print-portal h3{ font-size:12px; margin:0 0 6px; }
+}

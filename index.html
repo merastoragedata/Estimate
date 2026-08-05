@@ -5197,7 +5197,7 @@ function estimatePdfContent(e){
   sectionDefs.forEach(def=>{
     const rows = sectionItemTableRows(def[0]);
     const headers = rows[0].map(pdfAbbrHeader), body = rows.slice(1);
-    const feW = (typeof FE!=='undefined' && FE.attachRaw && FE.colWidths) ? FE.colWidths[def[0]] : null;
+    const feW = null;   // manual column widths removed — widths are derived
     const prNo = pmoPrForSection(e, def[0]==='supply'?['supply']:def[0]==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
     content.push(pdfBand(def[1] + (prNo?'   —   PR No.: '+prNo:''), 12, 'left', 'before'));
     // Full Description (ZEST03) wraps like Description and shifts the amount
@@ -5337,9 +5337,45 @@ function printSignatoryHtml(e){
       <div>${escapeHtml(s.office||'')}</div></td>`).join('')
   }</tr></table>`;
 }
-async function feDownloadPrint(orientation){
+// Print the ACTUAL preview DOM — no regenerated document, so what is on
+// screen is exactly what comes out. The preview node is moved into a portal at
+// the end of <body> for the duration of the print (a print stylesheet cannot
+// reliably isolate a node nested inside collapsed/positioned ancestors), then
+// put straight back. Abstract / Supply / ETC / O&M each break to a new page.
+function feDownloadPrint(orientation){
+  const src = document.getElementById('fe-result');
+  if (!src || !src.querySelector('.fe-print-page')) {
+    toast('Upload a ZEST03 sheet first — there is nothing to print yet.','warn',4000); return;
+  }
   if (!orientation) { askPrintOrientation(o => feDownloadPrint(o)); return; }
-  await feWithSyntheticAsync(()=> printEstimate(orientation));
+
+  // @page size cannot be switched by a class, so the chosen orientation is
+  // injected as a stylesheet for the duration of the print.
+  const pageStyle = document.createElement('style');
+  pageStyle.id = 'fe-print-page-style';
+  pageStyle.textContent = `@page{ size:A4 ${orientation==='portrait'?'portrait':'landscape'}; margin:10mm; }`;
+  document.head.appendChild(pageStyle);
+
+  const portal = document.createElement('div');
+  portal.id = 'fe-print-portal';
+  const marker = document.createComment('fe-result-home');
+  src.parentNode.insertBefore(marker, src);
+  portal.appendChild(src);
+  document.body.appendChild(portal);
+  document.body.classList.add('fe-printing');
+
+  let restored = false;
+  const restore = () => {
+    if (restored) return; restored = true;
+    if (marker.parentNode) marker.parentNode.insertBefore(src, marker);
+    marker.remove(); portal.remove(); pageStyle.remove();
+    document.body.classList.remove('fe-printing');
+    window.removeEventListener('afterprint', restore);
+  };
+  window.addEventListener('afterprint', restore);
+  // afterprint is not guaranteed on every browser — never leave the preview
+  // stranded in the portal.
+  setTimeout(() => { try { window.print(); } finally { setTimeout(restore, 1500); } }, 80);
 }
 // Ask orientation before printing — Landscape is the default (wide estimate
 // sheets), Portrait offered for narrower prints. Chosen orientation drives
@@ -9280,37 +9316,6 @@ function feDeleteStored(){
   toast('Stored ZEST03 removed — click Save Estimate to persist the removal.','ok',4000);
 }
 
-function feSetColWidth(secKey, colIdx, val){
-  FE.colWidths = FE.colWidths || {};
-  if (!FE.colWidths[secKey]) FE.colWidths[secKey] = [];
-  FE.colWidths[secKey][colIdx] = parseFloat(val)||0;
-  // persist with the estimate when embedded (saved via Save Estimate)
-  if (FE.baseEstimate && ST.currentEstimate && ST.currentEstimate.progress && ST.currentEstimate.progress.zest03) {
-    ST.currentEstimate.progress.zest03.colWidths = FE.colWidths;
-  }
-  // live-update the preview colgroup
-  const cg = document.getElementById('fe-cg-'+secKey);
-  if (cg) {
-    const ws = FE.colWidths[secKey];
-    const tw = ws.reduce((a,b)=>a+(+b||1),0);
-    Array.from(cg.children).forEach((col,i)=>{ col.style.width = ((+ws[i]||1)/tw*100)+'%'; });
-  }
-}
-function feWidthEditorHtml(secKey, headers){
-  const saved = (FE.colWidths && FE.colWidths[secKey]) || [];
-  // Widths saved before the Full Description column existed no longer line up.
-  const ws = (saved.length === headers.length) ? saved : [];
-  return `
-    <div class="collapse" style="margin-top:8px">
-      <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">📏 Adjust Column Widths</span><span class="chev">▸</span></div>
-      <div class="collapse-body"><div class="collapse-body-inner">
-        <p class="hint" style="margin:0 0 6px">Relative weights — they shape the preview below and are applied to the downloaded Excel and PDF. Stored with the estimate when saved.</p>
-        <div class="flex gap-2" style="flex-wrap:wrap">
-          ${headers.map((hd,i)=>`<label class="text-xs" style="display:flex;flex-direction:column;max-width:110px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(String(hd))}">${escapeHtml(String(hd).slice(0,16))}</span><input type="number" min="1" step="1" value="${ws[i]||''}" placeholder="auto" oninput="feSetColWidth('${secKey}',${i},this.value)" style="width:70px"></label>`).join('')}
-        </div>
-      </div></div>
-    </div>`;
-}
 function renderFinalEstimateResult(){
   const zone = document.getElementById('fe-result');
   if (!zone || !FE.result) return;
@@ -9325,6 +9330,15 @@ function renderFinalEstimateResult(){
         return `<tr class="${isTot?'fe-total':''}">${r.map(c=>`<td class="${typeof c==='number'?'num-cell':''}">${typeof c==='number'?fmtNum(c):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
+  // Signatory footer, mirroring the Excel block: black outer box, white inner
+  // gridlines (so the divisions are invisible, exactly as in the sheet).
+  const sigHtml = (()=>{
+    const sig = feWithSynthetic(()=> estimateSignatories(ST.currentEstimate).filter(x=>!x.hidden));
+    if (!sig || !sig.length) return '';
+    return `<table class="fe-sig"><tbody><tr>${sig.map(x=>`
+      <td><div class="fe-sig-title">${escapeHtml(x.title||'')}</div>
+          <div class="fe-sig-office">${escapeHtml(x.office||'')}</div></td>`).join('')}</tr></tbody></table>`;
+  })();
   const abstractRows = feWithSynthetic(()=> abstractSheetRows(true));
   const secRows = feWithSynthetic(()=> ({
     supply: res.supply.length?sectionItemTableRows('supply'):null,
@@ -9335,27 +9349,24 @@ function renderFinalEstimateResult(){
     const head = rows[0], body = rows.slice(1);
     const fullIdx = head.findIndex(h=>/full\s*description/i.test(String(h)));
     const amt0 = (()=>{ const i = head.findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
-    // Saved widths from before the Full Description column existed would be
-    // off by one — discard any set whose length no longer matches the table.
-    const saved = (FE.colWidths && FE.colWidths[secKey]) || [];
-    const ws = (saved.length === head.length) ? saved : [];
-    // NOTE: no default weights here. The preview must stay on table-layout:auto
-    // and stay horizontally scrollable unless the user has explicitly set
-    // widths — forcing fixed layout squeezes every column into the container.
-    // The Description : Full Description proportion is expressed in CSS via
-    // min/max-width on .fe-desc-cell / .fe-full-cell instead.
-    const tw = ws.length ? ws.reduce((a,b)=>a+(+b||1),0) : 0;
-    const cg = `<colgroup id="fe-cg-${secKey}">${head.map((_,i)=>`<col style="${tw?`width:${((+ws[i]||1)/tw*100)}%`:''}">`).join('')}</colgroup>`;
+    // Column widths auto-size. The Description : Full Description proportion
+    // is expressed in CSS via min/max-width on .fe-desc-cell / .fe-full-cell.
     const dcls = (i)=> i===2 ? ' fe-desc-cell' : (i===fullIdx ? ' fe-full-cell' : '');
-    return `<div class="table-wrap"><table class="fe-preview" style="table-layout:${tw?'fixed':'auto'}">${cg}
+    const N = head.length;
+    return `<div class="table-wrap"><table class="fe-preview">
       <thead><tr>${head.map((hd,i)=>`<th class="${dcls(i).trim()}">${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
       <tbody>${body.map(r=>{
         const isTot = r[2]==='TOTAL';
+        // The amount-in-words line carries no per-column data, so in the
+        // PREVIEW it spans the whole table as one merged cell — larger and
+        // bold, the way it reads on the official sheet. Exports are untouched.
+        const isWords = typeof r[2]==='string' && /in Words:/i.test(r[2]);
+        if (isWords) return `<tr class="fe-words-row"><td class="fe-words" colspan="${N}">${escapeHtml(String(r[2]))}</td></tr>`;
         return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${dcls(i)}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
   let html = `
-    <div class="card" style="margin-bottom:14px">
+    <div class="card fe-noprint" style="margin-bottom:14px">
       <div><div class="fw-700">Estimation No: ${escapeHtml(m.estNo||'—')} &nbsp;|&nbsp; SOR: ${escapeHtml(m.sor||'—')} &nbsp;|&nbsp; Date: ${escapeHtml(m.estDate||'—')}</div>
       <div class="text-sm text-muted">${escapeHtml(m.estFor||'')}</div></div>
       <div class="collapse" style="margin-top:10px">
@@ -9371,13 +9382,13 @@ function renderFinalEstimateResult(){
         </div></div>
       </div>
     </div>
-    <div class="card" style="margin-bottom:14px"><h3>Abstract</h3>${tbl(abstractRows, true)}</div>`;
+    <div class="card fe-print-page" style="margin-bottom:14px"><h3>Abstract</h3>${tbl(abstractRows, true)}${sigHtml}</div>`;
   [['supply','Supply Material',res.supply,secRows.supply],['project','ETC — Project Services',res.project,secRows.project],['om','O&M Services',res.om,secRows.om]].forEach(([key,title,items,rows])=>{
-    html += `<div class="card" style="margin-bottom:14px"><h3>${title} <span class="badge badge-neutral">${items.length} items</span>${res.prNos[key]?` <span class="text-sm text-muted">PR: ${escapeHtml(res.prNos[key])}</span>`:''}</h3>
-      ${rows?(secTbl(key, rows) + feWidthEditorHtml(key, rows[0])):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
+    html += `<div class="card${rows?' fe-print-page':' fe-noprint'}" style="margin-bottom:14px"><h3>${title} <span class="badge badge-neutral">${items.length} items</span>${res.prNos[key]?` <span class="text-sm text-muted">PR: ${escapeHtml(res.prNos[key])}</span>`:''}</h3>
+      ${rows?(secTbl(key, rows)+sigHtml):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
   });
   if (res.notFound.length){
-    html += `<div class="card" style="margin-bottom:14px"><h3>⚠ Items Not Classified <span class="badge badge-neutral">${res.notFound.length}</span></h3>
+    html += `<div class="card fe-noprint" style="margin-bottom:14px"><h3>⚠ Items Not Classified <span class="badge badge-neutral">${res.notFound.length}</span></h3>
       <p class="hint">These material numbers didn't match any Supply / ETC / O&M pattern and are excluded.</p>
       ${tbl([['Material No','Description','Mat / Service Full Description','UoM','Qty','Exworks']].concat(res.notFound.map(it=>[String(it.matNo), it.desc||it.full, (String(it.desc||'').trim()?String(it.full||''):''), it.uom, it.qty, it.exworks])), true)}</div>`;
   }
