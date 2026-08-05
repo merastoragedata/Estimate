@@ -4077,14 +4077,15 @@ function supplySparesAmount() {
   return supplySparesApplies() ? supplySparesBase() * 0.03 : 0;
 }
 
-function sectionTotalsCalc(key) {
-  const cfg = sectionConfig(key);
+function sectionTotalsCalc(key, itemsOverride) {
+  const cfg0 = sectionConfig(key);
+  const cfg = itemsOverride ? Object.assign({}, cfg0, {items: itemsOverride}) : cfg0;
   let base=0, ac=0, lc=0, fi=0, gst=0, total=0;
   cfg.items.forEach(it => {
     const c = calcItem(it, effectiveRates(), cfg.acKey);
     base+=c.base; ac+=c.ac; lc+=c.lc; fi+=c.fi; gst+=c.gst; total+=c.total;
   });
-  const spares = (key==='supply') ? supplySparesAmount() : 0;
+  const spares = (key==='supply' && !itemsOverride) ? supplySparesAmount() : 0;
   return {base, ac, lc, fi, gst, total: total+spares, spares, preSparesTotal: total};
 }
 
@@ -4593,6 +4594,26 @@ function signatoryBlock(e, colCount, startRow, opts) {
 // ── Item-table rows for a section, matching the reference's rich column
 // layout. Description is duplicated into short+full since SOR data only
 // carries a single description field. ──
+// Append a Remarks column to an already-built section table. Remarks come
+// from the Non-SOR database entry for that item number (falling back to the
+// item's own stored remark), which is where the PO references live.
+function appendRemarksColumn(rows, items){
+  const remarkFor = (itemNo)=>{
+    const id = String(itemNo||'');
+    const ns = (ST.nonSorCache||[]).find(x => String(x.item_no) === id);
+    if (ns && ns.remarks) return String(ns.remarks);
+    const own = items.find(x => String(x.item_no) === id);
+    return String((own && (own.remarks || own.remark)) || '');
+  };
+  return rows.map((r, i) => {
+    const row = r.slice();
+    if (i === 0) row.push('Remarks');
+    else if (typeof r[0] === 'number') row.push(remarkFor(r[1]));
+    else row.push('');
+    return row;
+  });
+}
+
 function sectionItemTableRows(key, itemsOverride) {
   const cfg0 = sectionConfig(key);
   // itemsOverride lets a caller build a sheet from a hand-picked set of items
@@ -4859,26 +4880,50 @@ async function exportEstimateExcel() {
   // top, so the label "Project Services PR" (it contains "service") would be
   // picked for the O&M sheet and that sheet would print the ETC PR number.
   const _pr = pmoPrResolve(e);
+  // Non-SOR entries live inline in supply/project/om on a ZEST03 estimate and
+  // in nonsor_* on a regular one — collect from both.
+  const _isNonSor = (it)=> !!(it.isCustom || it.version === 'NONSOR');
+  const _gather = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items.filter(_isNonSor)), []);
+  const nsMaterials = _gather(['supply','nonsor_supply']);
+  const nsServices  = _gather(['om','project','nonsor_om']);
+
+  // The Non-SOR sheets are EXACT copies of the Supply / O&M sheets — same
+  // builder, same styling, same totals block — differing only by: their own
+  // item subset, one extra Remarks column, three signatories instead of four
+  // (they are audited separately before the main sheets are signed), and no
+  // yellow highlight (the highlight exists to separate Non-SOR from SOR inside
+  // the Supply / O&M sheets; on a sheet that is entirely Non-SOR it is noise).
   const sectionDefs = [
-    ['supply','Supply  Material', _pr.supply],
-    ['project','ETC Part',        _pr.project],
-    ['om','Services Part',        _pr.om],
+    {key:'supply',  name:'Supply  Material', pr:_pr.supply},
+    {key:'project', name:'ETC Part',         pr:_pr.project},
+    {key:'om',      name:'Services Part',    pr:_pr.om},
+    {key:'supply',  name:'Non SOR Materials', pr:_pr.supply, items:nsMaterials,
+     remarks:true, noHighlight:true, skipFirstSig:true},
+    {key:'om',      name:'Non SOR Services',  pr:_pr.om,     items:nsServices,
+     remarks:true, noHighlight:true, skipFirstSig:true},
   ];
   sectionDefs.forEach(def => {
-    const key = def[0], name = def[1], prMatch = def[2];
-    if (!sectionConfig(key).items.length) return;
+    const key = def.key, name = def.name, prMatch = def.pr;
+    const itemsOverride = def.items || null;
+    const srcItems = itemsOverride || sectionConfig(key).items;
+    if (!srcItems.length) return;
     const prNo = (prMatch && prMatch.number) ? prMatch.number : '';
     const header = estimateHeaderRows(e, prNo);
-    const itemRows = sectionItemTableRows(key);
+    let itemRows = sectionItemTableRows(key, itemsOverride);
+    if (def.remarks) itemRows = appendRemarksColumn(itemRows, srcItems);
     const N = itemRows[0].length;
     const H = itemRows[0];
     // item data rows only (drop the built-in TOTAL and amount-in-words rows)
     const items = itemRows.slice(1).filter(r => String(r[2])!=='TOTAL'
       && !/^amount in words|^total amount/i.test(String(r[2]||''))
       && !/^add: supply spares|^supply part total/i.test(String(r[2]||'')));
-    const t = sectionTotalsCalc(key);
+    const t = sectionTotalsCalc(key, itemsOverride);
     const rateSet = effectiveRates();
-    const descCol = 2, valueCol = N - 2, statusCol = N - 1;   // last col = SoR status
+    // Resolve by HEADER, not by offset from the end: the Non-SOR sheets append
+    // a Remarks column, which would otherwise shift both of these.
+    const descCol = 2;
+    const statusCol = (()=>{ const i = H.findIndex(h=>/sor\s*status/i.test(String(h))); return i>-1 ? i : N-1; })();
+    const valueCol  = (()=>{ const i = H.findIndex(h=>/total amount including gst/i.test(String(h))); return i>-1 ? i : N-2; })();
     // Full Description (ZEST03) sits right of Description and pushes every
     // amount column one to the right — resolve both by header, never by index.
     const fullCol = H.findIndex(h=>/full\s*description/i.test(String(h)));
@@ -4923,7 +4968,10 @@ async function exportEstimateExcel() {
     R.push(mk());                                   // blank (A-L) before amount-in-words
     const wordsIdx = R.length; R.push(wordsR);
     const sigStart = R.length;                      // signatoryBlock adds 2 blank rows then title+office
-    const _sig = signatoryBlock(e, N, sigStart);
+    // Non-SOR sheets carry three signatories (no first): they go for separate
+    // audit scrutiny, and the main four sheets are only signed once that audit
+    // has passed.
+    const _sig = signatoryBlock(e, N, sigStart, {skipFirst: !!def.skipFirstSig});
     _sig.rows.forEach(r=>R.push(r));
     const rows = R;
 
@@ -4942,8 +4990,11 @@ async function exportEstimateExcel() {
     // zebra + description-left on item rows only
     for (let i=itemStart;i<=itemEnd;i++){
       if ((i-itemStart)%2===1) for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
-      // Non-SOR rows carry a light yellow fill, matching the preview.
-      if (String(ws[XLSXmod.utils.encode_cell({r:i,c:statusCol})] &&
+      // Non-SOR rows carry a light yellow fill inside the Supply / O&M sheets,
+      // to separate them from SOR rows. A dedicated Non-SOR sheet is entirely
+      // Non-SOR, so highlighting every row there would mean nothing.
+      if (!def.noHighlight &&
+          String(ws[XLSXmod.utils.encode_cell({r:i,c:statusCol})] &&
                  ws[XLSXmod.utils.encode_cell({r:i,c:statusCol})].v || '') === 'Non-SoR') {
         for (let c=0;c<N;c++){
           const ad = XLSXmod.utils.encode_cell({r:i,c});
@@ -5036,47 +5087,8 @@ async function exportEstimateExcel() {
   // Non-SOR: MATERIALS and SERVICES get a sheet each. They cannot share one
   // sheet because their charge columns differ (a services section may carry
   // no F&I, so the two have different header sets and column counts).
-  // Gather Non-SOR entries from EVERY section they can occur in. A regular
-  // estimate keeps them in nonsor_supply / nonsor_om; a ZEST03 estimate keeps
-  // them inline in supply / project / om flagged isCustom. Collect both.
-  const isNonSor = (it)=> !!(it.isCustom || it.version === 'NONSOR');
-  const gather = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items.filter(isNonSor)), []);
-  [['supply', gather(['supply','nonsor_supply']),        'Non SOR Materials', 'Estimate ( Non SOR Items ) - For Supply of Items'],
-   ['om',     gather(['om','project','nonsor_om']),      'Non SOR Services',  'Estimate ( Non SOR Items ) - For Services']
-  ].forEach(([nsKey, nsItems, nsSheetName, nsTitle]) => {
-    if (!nsItems.length) return;
-    const header = estimateHeaderRows(e, '');
-    let rows = header.concat([[nsTitle]]);
-    rows = rows.concat(sectionItemTableRows(nsKey, nsItems));
-    // Signatory footer — this sheet carries the LAST THREE signatories only
-    // (no first signatory), per the approved Non-SOR format.
-    const nsCols = Math.max(...rows.map(r=>r.length));
-    const sigStart = rows.length + 1;
-    const sig = signatoryBlock(e, nsCols, sigStart, {skipFirst:true});
-    rows = rows.concat(sig.rows);
+  // (Non-SOR sheets are produced by the shared section builder above.)
 
-    const ws = XLSXmod.utils.aoa_to_sheet(rows);
-    applySmartColWidths(ws, rows);
-    // Light yellow on every Non-SOR item row (rows whose first cell is a
-    // running serial), matching the Supply / O&M sheets and the preview.
-    const NONSOR_FILL = { patternType:'solid', fgColor:{rgb:'FFF8DC'} };
-    for (let r=0; r<rows.length; r++){
-      if (typeof rows[r][0] === 'number') {
-        for (let c=0; c<nsCols; c++){
-          const ad = XLSXmod.utils.encode_cell({r, c});
-          if (ws[ad]) { ws[ad].s = ws[ad].s || {}; ws[ad].s.fill = NONSOR_FILL; }
-        }
-      }
-    }
-    (sig.merges||[]).forEach(m=>{ ws['!merges'] = ws['!merges']||[]; ws['!merges'].push(m); });
-    // NOTE: gridlines are applied to every sheet by beautifySheet() at export
-    // time — LUXE_BORDER_ALL is a border *object*, not a function, and calling
-    // it as one aborted the whole export.
-    drawOuterBorder(ws);
-    applyMsetclHeaderBanner(ws, nsCols);
-    autoRowHeights(ws);
-    XLSXmod.utils.book_append_sheet(wb, ws, nsSheetName);
-  });
 
   // Final sheet: PMO / PR Numbers — formatted to match the approved sheet
   const filledPmoPr = pmoPrAllFilled(e);
