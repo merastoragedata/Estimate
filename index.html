@@ -2597,7 +2597,10 @@ function applySmartColWidths(ws, rows) {
 // Every fill uses patternType:'solid' (required for xlsx-js-style to render),
 // borders are explicit, and the header carries a gold underline accent. ──
 const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
-const _THIN = { style:'thin', color:{ rgb:'000000' } };
+// Interior gridlines use Excel's thinnest weight ('hair'). Emphasis lines
+// (_GOLD_EDGE: header underline / total overline) stay 'thin', and the sheet's
+// outer box stays 'medium', so the hierarchy of the grid is still readable.
+const _THIN = { style:'hair', color:{ rgb:'000000' } };
 const _GOLD_EDGE = { style:'thin', color:{ rgb:'000000' } };
 const XLSX_STYLES = {
   header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
@@ -2762,7 +2765,7 @@ function installLuxeXlsx(X) {
   X.__luxeReady = true;
 }
 
-const LUXE_GRID = { style:'thin', color:{ rgb:'000000' } };
+const LUXE_GRID = { style:'hair', color:{ rgb:'000000' } };   // interior gridlines — thinnest weight
 const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right:LUXE_GRID };
 // Exact column widths from the approved edited sheet (print-ready).
 const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
@@ -9105,16 +9108,20 @@ function renderFinalEstimateResult(){
     // Saved widths from before the Full Description column existed would be
     // off by one — discard any set whose length no longer matches the table.
     const saved = (FE.colWidths && FE.colWidths[secKey]) || [];
-    let ws = (saved.length === head.length) ? saved : [];
-    // Default weights: every column 4, Description 80% (3.2), Full Desc 150% (6).
-    if (!ws.length && fullIdx > -1) ws = head.map((_,i)=> i===2 ? 3.2 : (i===fullIdx ? 6 : 4));
+    const ws = (saved.length === head.length) ? saved : [];
+    // NOTE: no default weights here. The preview must stay on table-layout:auto
+    // and stay horizontally scrollable unless the user has explicitly set
+    // widths — forcing fixed layout squeezes every column into the container.
+    // The Description : Full Description proportion is expressed in CSS via
+    // min/max-width on .fe-desc-cell / .fe-full-cell instead.
     const tw = ws.length ? ws.reduce((a,b)=>a+(+b||1),0) : 0;
     const cg = `<colgroup id="fe-cg-${secKey}">${head.map((_,i)=>`<col style="${tw?`width:${((+ws[i]||1)/tw*100)}%`:''}">`).join('')}</colgroup>`;
+    const dcls = (i)=> i===2 ? ' fe-desc-cell' : (i===fullIdx ? ' fe-full-cell' : '');
     return `<div class="table-wrap"><table class="fe-preview" style="table-layout:${tw?'fixed':'auto'}">${cg}
-      <thead><tr>${head.map(hd=>`<th>${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
+      <thead><tr>${head.map((hd,i)=>`<th class="${dcls(i).trim()}">${escapeHtml(String(hd))}</th>`).join('')}</tr></thead>
       <tbody>${body.map(r=>{
         const isTot = r[2]==='TOTAL';
-        return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${i===2||i===fullIdx?' fe-desc-cell':''}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
+        return `<tr class="${isTot?'fe-total':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${dcls(i)}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
   let html = `

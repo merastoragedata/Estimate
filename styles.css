@@ -1079,9 +1079,19 @@ body::after{
 .fe-preview th{ background:#EFF1F4; color:#1F2937; font-weight:700; text-align:left; padding:6px 8px; border:1px solid #B7BEC9; white-space:normal; }
 .fe-preview td{ padding:5px 8px; border:1px solid #D5DAE1; vertical-align:top; }
 .fe-preview td.num-cell{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:92px; }
-/* Description and Mat/Service Full Description share identical formatting —
-   left aligned, wrapping, breaking long uninterrupted SAP description strings. */
-.fe-preview td.fe-desc-cell{ text-align:left; white-space:normal; word-break:break-word; overflow-wrap:anywhere; hyphens:auto; }
+/* Description and Mat/Service Full Description share identical formatting.
+   The 80 : 150 proportion is a sizing HINT under table-layout:auto — never a
+   forced percentage, so the table keeps auto-sizing and stays scrollable. */
+.fe-preview td.fe-desc-cell, .fe-preview th.fe-desc-cell,
+.fe-preview td.fe-full-cell, .fe-preview th.fe-full-cell{
+  text-align:left; white-space:normal; word-break:break-word; overflow-wrap:anywhere; hyphens:auto;
+}
+.fe-preview td.fe-desc-cell, .fe-preview th.fe-desc-cell{ min-width:160px; max-width:240px; }
+.fe-preview td.fe-full-cell, .fe-preview th.fe-full-cell{ min-width:300px; max-width:450px; }
+@media (max-width:640px){
+  .fe-preview td.fe-desc-cell, .fe-preview th.fe-desc-cell{ min-width:130px; max-width:180px; }
+  .fe-preview td.fe-full-cell, .fe-preview th.fe-full-cell{ min-width:244px; max-width:338px; }
+}
 .fe-preview{ overflow:visible; }
 .fe-preview .table-wrap, .table-wrap:has(.fe-preview){ overflow-x:auto; }
 .fe-preview tr.fe-total td{ background:#E9EBEE; font-weight:700; color:#1F2937; }
