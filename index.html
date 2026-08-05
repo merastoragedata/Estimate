@@ -1358,6 +1358,80 @@ function debounce(fn, wait=220) {
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 
+// ── Date fields shown and typed as 12-Jun-2026 ────────────────────────────
+// A native <input type="date"> always renders in the browser/OS locale
+// (06/12/2026, 12.06.2026, …) and that is not restylable. So the visible
+// control is a text box in dd-Mmm-yyyy, while a hidden native input keeps the
+// ISO value and supplies the calendar picker. The hidden input carries the
+// caller's id, so existing code reading getElementById(id).value still gets
+// ISO back and nothing downstream has to change.
+const DF_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Accepts 12-Jun-2026, 12 Jun 2026, 2026-06-12, 12-06-2026, 12/06/2026.
+// Bare numeric forms are read day-first (Indian convention), never month-first.
+function dfParse(str){
+  const s = String(str||'').trim();
+  if (!s) return '';
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return dfISO(+m[1], +m[2], +m[3]);
+  if ((m = s.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,})[-/ ](\d{4})$/))) {
+    const mi = DF_MONTHS.findIndex(x => x.toLowerCase() === m[2].slice(0,3).toLowerCase());
+    return mi < 0 ? '' : dfISO(+m[3], mi+1, +m[1]);
+  }
+  if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/))) return dfISO(+m[3], +m[2], +m[1]);
+  return '';
+}
+function dfISO(y, mo, d){
+  if (!(mo>=1 && mo<=12) || !(d>=1 && d<=31)) return '';
+  const dt = new Date(y, mo-1, d);
+  if (dt.getFullYear()!==y || dt.getMonth()!==mo-1 || dt.getDate()!==d) return '';  // rejects 31-Feb
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function dfDisplay(iso){ return iso ? fmtDate(iso) : ''; }
+
+function dateFieldHtml(id, iso, opts){
+  const o = opts||{};
+  const dis = o.disabled ? 'disabled' : '';
+  return `<div class="df-wrap${o.disabled?' df-disabled':''}">
+    <input type="text" class="df-text" id="${id}-text" value="${escapeHtml(dfDisplay(iso))}"
+           placeholder="DD-Mmm-YYYY" autocomplete="off" ${dis}
+           onchange="dfCommit('${id}')" onblur="dfCommit('${id}')"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();dfCommit('${id}');}">
+    <button type="button" class="df-cal" ${dis} onclick="dfOpen('${id}')" aria-label="Choose date" tabindex="-1">📅</button>
+    <input type="date" class="df-native" id="${id}" value="${escapeHtml(iso||'')}" ${dis}
+           onchange="dfSync('${id}')" tabindex="-1" aria-hidden="true">
+  </div>`;
+}
+// Native picker changed → refresh the visible text.
+function dfSync(id){
+  const nat = document.getElementById(id), txt = document.getElementById(id+'-text');
+  if (nat && txt) txt.value = dfDisplay(nat.value);
+}
+// Typed text committed → parse into the native input, then normalise the text.
+// Unparseable input reverts to the last good value rather than silently
+// clearing a date the user did not mean to erase.
+function dfCommit(id){
+  const nat = document.getElementById(id), txt = document.getElementById(id+'-text');
+  if (!nat || !txt) return;
+  const raw = txt.value.trim();
+  if (!raw) { nat.value = ''; txt.value = ''; return; }
+  const iso = dfParse(raw);
+  if (iso) { nat.value = iso; txt.value = dfDisplay(iso); }
+  else { txt.value = dfDisplay(nat.value); }
+}
+function dfOpen(id){
+  const nat = document.getElementById(id);
+  if (!nat || nat.disabled) return;
+  try { if (typeof nat.showPicker === 'function') { nat.showPicker(); return; } } catch(e){ /* fall through */ }
+  nat.focus(); nat.click();
+}
+// Set a date field programmatically (keeps text and native input in step).
+function dfSet(id, iso){
+  const nat = document.getElementById(id), txt = document.getElementById(id+'-text');
+  if (nat) nat.value = iso||'';
+  if (txt) txt.value = dfDisplay(iso);
+}
+
 // ── Permission helpers ──
 function isAdmin(){ return ST.user && ST.user.role==='admin'; }
 function isViewer(){ return ST.user && ST.user.role==='viewer'; }
@@ -3055,8 +3129,12 @@ function blankEstimate() {
     prSettings: defaultPrSettings()
   };
 }
+// Slot count for the PMO / PR block. Raised from 6 to 8 because ZEST03 now
+// auto-fills up to five entries (3 section PRs + the two reference numbers),
+// which would otherwise leave almost no room for manually added ones.
+const PMO_PR_SLOTS = 8;
 function defaultPmoPrEntries() {
-  return Array.from({length:6}, () => ({label:'', number:''}));
+  return Array.from({length:PMO_PR_SLOTS}, () => ({label:'', number:''}));
 }
 function defaultPrSettings() {
   const d = new Date();
@@ -3118,7 +3196,7 @@ function renderEstimateStep1(preserveItems=false) {
         <div class="field"><label>Estimate Number</label><input type="text" id="e-number" placeholder="Can be added later"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Date</label><input type="date" id="e-date" value="${todayISO()}"></div>
+        <div class="field"><label>Date</label>${dateFieldHtml('e-date', todayISO())}</div>
         <div class="field"><label>Division</label><input type="text" id="e-division" placeholder="e.g. Karjat"></div>
       </div>
       <div class="field-row">
@@ -3644,8 +3722,8 @@ function normalizeLoadedEstimate(e) {
   e.status = e.status || 'draft';
   e.landCompChargePct = e.landCompChargePct || 15;
   if (!Array.isArray(e.pmoPrEntries)) e.pmoPrEntries = defaultPmoPrEntries();
-  while (e.pmoPrEntries.length < 6) e.pmoPrEntries.push({label:'', number:''});
-  e.pmoPrEntries = e.pmoPrEntries.slice(0,6);
+  while (e.pmoPrEntries.length < PMO_PR_SLOTS) e.pmoPrEntries.push({label:'', number:''});
+  e.pmoPrEntries = e.pmoPrEntries.slice(0,PMO_PR_SLOTS);
   if (!e.prSettings) e.prSettings = defaultPrSettings();
   else e.prSettings = {...defaultPrSettings(), ...e.prSettings};
   return e;
@@ -4329,12 +4407,35 @@ const MSETCL_HEADER_LINE1 = 'MAHARASHTRA STATE ELECTRICITY TRANSMISSION COMPANY 
 // "etc" -> Sr.2, "o&m"/"om"/"service" -> Sr.3). Falls back to listing all
 // filled entries if no clear per-section match exists, so nothing is ever
 // silently dropped. ──
+// Canonical section order for PMO/PR matching. Order matters and claims are
+// exclusive: the label "ETC (Project Services)" contains the word "Services",
+// so matching each section independently let ETC also satisfy the O&M lookup
+// and the O&M sheets printed the ETC PR number. Claiming Supply → ETC → O&M
+// with no entry reused makes each section resolve to its own PR.
+const PMO_SECTION_ORDER = [
+  {key:'supply',  keywords:['supply']},
+  {key:'project', keywords:['project','etc']},
+  {key:'om',      keywords:['o&m','om','service']},
+];
+function pmoPrResolve(e) {
+  const entries = (e.pmoPrEntries||[]);
+  const usable = entries.map((p,i)=>({p,i}))
+    .filter(x=> x.p && String(x.p.label||'').trim() && String(x.p.number||'').trim()
+                && !isPmoReferenceLabel(x.p.label));   // reference numbers are not section PRs
+  const out = {}, used = new Set();
+  PMO_SECTION_ORDER.forEach(sec=>{
+    const hit = usable.find(x=> !used.has(x.i) &&
+      sec.keywords.some(k=> String(x.p.label).toLowerCase().includes(k)));
+    if (hit) { used.add(hit.i); out[sec.key] = hit.p; }
+  });
+  return out;
+}
 function pmoPrForSection(e, sectionKeywords) {
-  const filled = (e.pmoPrEntries||[]).filter(p=>p.label && p.label.trim() && p.number && p.number.trim());
-  if (!filled.length) return '';
-  const match = filled.find(p => sectionKeywords.some(k => p.label.toLowerCase().includes(k)));
-  if (match) return ` wrt ${match.label} No- ${match.number}`;
-  return '';
+  const resolved = pmoPrResolve(e);
+  // Map the caller's keyword list back to a canonical section.
+  const sec = PMO_SECTION_ORDER.find(s=> s.keywords.some(k=> sectionKeywords.includes(k)));
+  const match = sec ? resolved[sec.key] : null;
+  return match ? ` wrt ${match.label} No- ${match.number}` : '';
 }
 function pmoPrAllFilled(e) {
   return (e.pmoPrEntries||[]).filter(p=>p.label && p.label.trim() && p.number && p.number.trim());
@@ -6608,7 +6709,7 @@ function renderPgDetails(est, readOnly) {
     <div class="grid grid-2">
       <div class="field"><label>Name</label><input type="text" id="pg-name" value="${escapeHtml(est.name)}" ${readOnly?'disabled':''}></div>
       <div class="field"><label>Number</label><input type="text" id="pg-number" value="${escapeHtml(est.number||'')}" ${readOnly?'disabled':''}></div>
-      <div class="field"><label>Date</label><input type="date" id="pg-date" value="${escapeHtml(est.date||'')}" ${readOnly?'disabled':''}></div>
+      <div class="field"><label>Date</label>${dateFieldHtml('pg-date', est.date||'', {disabled:readOnly})}</div>
       <div class="field"><label>Division</label><input type="text" id="pg-division" value="${escapeHtml(est.division||'')}" ${readOnly?'disabled':''}></div>
     </div>
     <div class="field"><label>References <span class="text-muted" style="font-weight:500">(Google Sheet / Doc links, one per line)</span></label>
@@ -8780,6 +8881,80 @@ function feBuild(parsed){
     prNos:{ supply:prList(groups.supply), project:prList(groups.project), om:prList(groups.om) } };
 }
 
+// ── Auto-fill PMO / PR Numbers from the uploaded ZEST03 ───────────────────
+// ZEST03 carries a PR No. per line, so the section PR numbers are already
+// known the moment the sheet is read — no reason to make anyone retype them.
+// Matching mirrors pmoPrForSection() so an entry filled here is the same one
+// the exporters later read back. Sections are claimed in a fixed order
+// (Supply → ETC → O&M) and an index is never claimed twice: "ETC (Project
+// Services)" contains the word "Services", so O&M would otherwise steal it.
+function feFillPmoPrFromZest03(e, prNos, meta){
+  if (!e) return {filled:0, changed:[], dropped:[]};
+  if (!Array.isArray(e.pmoPrEntries)) e.pmoPrEntries = defaultPmoPrEntries();
+  prNos = prNos || {}; meta = meta || {};
+
+  // Fixed display sequence. Entries with no value are SKIPPED, so the ones
+  // that follow move up — there are never blank gaps in the middle.
+  const estNo   = String(meta.estNo||'').trim();
+  const estDate = String(meta.estDate||'').trim();
+  const SEQUENCE = [
+    {key:'supply',  label:'Supply PR',                 value:String(prNos.supply ||'').trim()},
+    {key:'project', label:'Project Services PR',       value:String(prNos.project||'').trim()},
+    {key:'om',      label:'O&M Services PR',           value:String(prNos.om     ||'').trim()},
+    {key:'estzest', label:'Estimation Number with Date',
+                    value:estNo ? (estDate ? `${estNo} dt. ${estDate}` : estNo) : ''},
+    {key:'estno',   label:'Estimate Number with Date',
+                    value:(()=>{ const n=String(e.number||'').trim(); if(!n) return '';
+                                 const d=fmtDate(e.date); return d ? `${n} dt. ${d}` : n; })()},
+  ];
+
+  // Reuse a label the user typed themselves for a section rather than
+  // renaming it under them; otherwise use the canonical label above.
+  const SECTION_KEYS = {supply:['supply'], project:['project','etc'], om:['o&m','om','service']};
+  const prior = e.pmoPrEntries.filter(p=> p && (String(p.label||'').trim() || String(p.number||'').trim()));
+  const claimed = new Set();
+  const labelFor = (sec)=>{
+    const kws = SECTION_KEYS[sec.key];
+    if (!kws) return sec.label;
+    const hit = prior.find(p=> !claimed.has(p) && !isPmoReferenceLabel(p.label)
+                            && kws.some(k=> String(p.label).toLowerCase().includes(k)));
+    if (hit) { claimed.add(hit); return String(hit.label).trim(); }
+    return sec.label;
+  };
+
+  const auto = [], changed = [];
+  SEQUENCE.forEach(sec=>{
+    if (!sec.value) return;                                  // not available → skip entirely
+    const label = labelFor(sec);
+    const was = prior.find(p=> String(p.label||'').trim().toLowerCase() === label.toLowerCase());
+    const before = was ? String(was.number||'').trim() : '';
+    if (was) claimed.add(was);
+    if (before !== sec.value) changed.push({label, from:before, to:sec.value});
+    auto.push({label, number:sec.value});
+  });
+
+  // Keep anything the user added that the sequence didn't cover, in its
+  // original order, after the auto-filled block.
+  const autoLabels = new Set(auto.map(a=>a.label.toLowerCase()));
+  const manual = prior.filter(p=> !claimed.has(p) && !autoLabels.has(String(p.label||'').trim().toLowerCase()));
+
+  const dropped = [];
+  let merged = auto.concat(manual);
+  if (merged.length > PMO_PR_SLOTS) {
+    dropped.push(...merged.slice(PMO_PR_SLOTS).map(p=>p.label||p.number));
+    merged = merged.slice(0, PMO_PR_SLOTS);
+  }
+  while (merged.length < PMO_PR_SLOTS) merged.push({label:'', number:''});
+  e.pmoPrEntries = merged;
+
+  return {filled:auto.length, changed, dropped};
+}
+// "Estimation Number with Date" / "Estimate Number" are reference numbers, not
+// section PRs — they must never be claimed as a section's PR by keyword match.
+function isPmoReferenceLabel(label){
+  return /^\s*estimat(e|ion)\b/i.test(String(label||''));
+}
+
 // ── Build a synthetic estimate + items so the website engine can price it ──
 // When launched from within an estimate (embedded mode), FE.baseEstimate holds
 // that estimate's charge settings — type, AC toggles, PV/contingencies/centages,
@@ -9020,6 +9195,24 @@ async function feReadZest(evt){
         sheetLabel: FE.rawSheetLabel, savedAt: new Date().toISOString(),
       };
       toast('ZEST03 stored with this estimate — click Save Estimate to persist.','ok',4000);
+
+      // PR numbers come straight off the ZEST03 lines — fill them into the
+      // estimate's PMO / PR Numbers block immediately so they don't have to be
+      // typed in by hand. Refresh the editor if that panel is on screen.
+      const pf = feFillPmoPrFromZest03(e, FE.result.prNos, FE.parsed.meta);
+      if (pf.filled){
+        renderPmoPrList(isViewer());
+        const headSpan = document.querySelector('#pmo-pr-collapse .collapse-head span:first-child');
+        if (headSpan){
+          const n = pmoPrFilledCount(e);
+          headSpan.innerHTML = `🔖 PMO / PR Numbers ${n>0?`<span class="badge badge-gold" style="margin-left:6px">${n} entered</span>`:''}`;
+        }
+        const detail = pf.changed.filter(c=>c.from).map(c=>`${c.label}: ${c.from} → ${c.to}`);
+        toast(`PR numbers filled from ZEST03 (${pf.filled} section${pf.filled>1?'s':''})`
+              + (detail.length?` — replaced ${detail.join(', ')}`:'')
+              + (pf.dropped.length?` — no room for ${pf.dropped.join(', ')}`:''),
+              pf.dropped.length?'warn':'ok', pf.dropped.length?7000:4500);
+      }
     }
     renderFinalEstimateResult();
     toast(`Generated from "${name}" — ${FE.parsed.items.length} items.`,'ok');
@@ -9259,15 +9452,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ── 4. Scroll-reveal observer ─────────────────────────────────────────── */
+  // threshold:0 — reveal on ANY intersection.
+  //
+  // This was 0.08, which silently broke long content: an element taller than
+  // roughly 12.5 viewports can never reach 8% visibility, so the callback
+  // never fired, .in was never added, and the element stayed at opacity:0
+  // permanently. A Final Estimate with a long Supply section crosses that
+  // line easily. Revealing on any intersection removes the trap entirely.
   var revObs = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
     es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); revObs.unobserve(en.target); } });
-  }, {threshold:.08, rootMargin:'0px 0px -6% 0px'}) : null;
+  }, {threshold:0, rootMargin:'0px 0px -6% 0px'}) : null;
 
   function markReveals(scope){
     if(REDUCE || !revObs) return;
     var sel = '.card, .est-card, .stat-card, .dash-cat-section, .ws-toolbar, .table-wrap';
+    var vh = window.innerHeight || 800;
     scope.querySelectorAll(sel).forEach(function(el, i){
       if(el.hasAttribute('data-lux-rev')) return;
+      // Never animate document-like content. Two reasons:
+      //  1. translateY() promotes the element to its own compositing layer,
+      //     and a layer taller than the browser's max texture (~16k px) stops
+      //     painting partway down — a long table gets cut off MID-TABLE.
+      //  2. There is no visual benefit to fading in a dense data sheet.
+      // The Final Estimate preview is excluded outright; anything unusually
+      // tall is skipped by measurement.
+      if (el.closest && el.closest('#fe-result')) { el.setAttribute('data-lux-rev','1'); return; }
+      if (el.offsetHeight > vh * 2.2) { el.setAttribute('data-lux-rev','1'); return; }
       el.setAttribute('data-lux-rev','1');
       el.classList.add('lux-reveal');
       el.style.transitionDelay = Math.min(i*40, 240) + 'ms';

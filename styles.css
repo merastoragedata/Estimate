@@ -202,6 +202,24 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--navy-70
 input:disabled,select:disabled,textarea:disabled{background:var(--surface-3); color:var(--steel-600); cursor:not-allowed}
 textarea{resize:vertical; min-height:64px}
 .field{margin-bottom:13px}
+/* ── Date field: visible text box in DD-Mmm-YYYY + hidden native picker ──
+   The native input stays in the DOM (it holds the ISO value and provides the
+   calendar), but is visually hidden because its rendered format is locale
+   controlled and cannot be changed. */
+.df-wrap{position:relative; display:block}
+.df-wrap .df-text{padding-right:38px}
+.df-wrap .df-cal{
+  position:absolute; top:50%; right:6px; transform:translateY(-50%);
+  width:28px; height:28px; padding:0; line-height:1; font-size:15px;
+  border:none; background:transparent; cursor:pointer; border-radius:var(--radius-sm);
+  display:flex; align-items:center; justify-content:center;
+}
+.df-wrap .df-cal:hover{background:var(--surface-3)}
+.df-wrap .df-cal:disabled{cursor:not-allowed; opacity:.45}
+.df-wrap .df-native{
+  position:absolute; left:11px; bottom:0; width:1px; height:1px;
+  padding:0; margin:0; border:0; opacity:0; pointer-events:none;
+}
 .field-row{display:flex; gap:12px}
 .field-row > *{flex:1}
 .hint{font-size:11.5px; color:var(--steel-600); margin-top:4px}
@@ -708,6 +726,13 @@ h1,h2,h3,h4{font-family:var(--font-display); letter-spacing:-.02em}
 /* ── Scroll reveal ─────────────────────────────────────────────────────── */
 .lux-reveal{opacity:0; transform:translateY(22px); transition:opacity .7s var(--ease-out), transform .7s var(--ease-out)}
 .lux-reveal.in{opacity:1; transform:none}
+/* Hard safety net: the Final Estimate preview is a document, not a card.
+   It must never depend on a scroll animation to become visible, and it must
+   never be promoted to a compositing layer (a layer taller than the browser's
+   max texture stops painting partway down, cutting long tables off mid-table). */
+#fe-result .lux-reveal,
+#fe-result .card,
+#fe-result .table-wrap{opacity:1 !important; transform:none !important; transition:none !important}
 
 /* ── Custom cursor glow (desktop, fine pointer only) ───────────────────── */
 #lux-cursor{
@@ -1082,6 +1107,14 @@ body::after{
 /* Description and Mat/Service Full Description share identical formatting.
    The 80 : 150 proportion is a sizing HINT under table-layout:auto — never a
    forced percentage, so the table keeps auto-sizing and stays scrollable. */
+/* WRAP, NEVER TRUNCATE. Every preview cell grows vertically to fit its text;
+   nothing is ever clipped, ellipsised, or line-clamped. The min/max-widths
+   below only steer how wide a column gets — text that doesn't fit wraps onto
+   more lines and the row gets taller. */
+.fe-preview td, .fe-preview th{
+  overflow:visible; text-overflow:clip; max-height:none;
+  -webkit-line-clamp:none; -webkit-box-orient:initial;
+}
 .fe-preview td.fe-desc-cell, .fe-preview th.fe-desc-cell,
 .fe-preview td.fe-full-cell, .fe-preview th.fe-full-cell{
   text-align:left; white-space:normal; word-break:break-word; overflow-wrap:anywhere; hyphens:auto;
