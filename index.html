@@ -2526,7 +2526,7 @@ function applySmartColWidths(ws, rows) {
 // Every fill uses patternType:'solid' (required for xlsx-js-style to render),
 // borders are explicit, and the header carries a gold underline accent. ──
 const EXPORT_FONT = 'Arial Nova Cond';     // approved print font (condensed Arial) — declared before style objects that use it
-const _THIN = { style:'hair', color:{ rgb:'000000' } };
+const _THIN = { style:'thin', color:{ rgb:'000000' } };
 const _GOLD_EDGE = { style:'thin', color:{ rgb:'000000' } };
 const XLSX_STYLES = {
   header:   { font:{name:EXPORT_FONT, bold:true, color:{rgb:'000000'}, sz:14}, fill:{patternType:'solid', fgColor:{rgb:'EFF1F4'}}, alignment:{vertical:'center', horizontal:'center', wrapText:true}, border:{top:_THIN, left:_THIN, right:_THIN, bottom:_GOLD_EDGE} },
@@ -2691,11 +2691,31 @@ function installLuxeXlsx(X) {
   X.__luxeReady = true;
 }
 
-const LUXE_GRID = { style:'hair', color:{ rgb:'000000' } };
+const LUXE_GRID = { style:'thin', color:{ rgb:'000000' } };
 const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right:LUXE_GRID };
 // Exact column widths from the approved edited sheet (print-ready).
 const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
 const COLW_ABSTRACT = [15.86, 10, 15.86, 1.86, 16, 9, 2.57, 17.43, 14.86, 1.86, 20.71, 53.29];
+// Draw a medium outer border around the whole used range of a sheet.
+function drawOuterBorder(ws){
+  if (!ws || !ws['!ref']) return;
+  const X = window.XLSX;
+  const range = X.utils.decode_range(ws['!ref']);
+  const EDGE = { style:'medium', color:{ rgb:'000000' } };
+  for (let r=range.s.r; r<=range.e.r; r++){
+    for (let c=range.s.c; c<=range.e.c; c++){
+      const onTop=r===range.s.r, onBot=r===range.e.r, onLeft=c===range.s.c, onRight=c===range.e.c;
+      if (!(onTop||onBot||onLeft||onRight)) continue;
+      const ad = X.utils.encode_cell({r,c});
+      if (!ws[ad]) ws[ad] = { t:'s', v:'' };
+      const s = ws[ad].s = ws[ad].s || {};
+      const b = Object.assign({}, s.border);
+      if (onTop) b.top = EDGE; if (onBot) b.bottom = EDGE;
+      if (onLeft) b.left = EDGE; if (onRight) b.right = EDGE;
+      s.border = b;
+    }
+  }
+}
 // Estimate each row's height from its content so nothing is clipped when
 // printed (rows auto-size to content — required for a ready-to-print sheet).
 function autoRowHeights(ws, defaultFontSz=12, mins){
@@ -2796,6 +2816,7 @@ function beautifySheet(ws) {
     }
   }
   ws['!rows'] = ws['!rows'] || [];
+  try { drawOuterBorder(ws); } catch(e){}
 }
 
 // Portrait consolidation content (vertical OB-card style, one block per estimate)
@@ -4008,30 +4029,43 @@ function pmoPrSummaryLine(e) {
 }
 
 function renderChargeRatesPanel(readOnly, showAbstractRates) {
+  const e = ST.currentEstimate;
   const rates = effectiveRates();
+  const acApplied = !!(e.addCharge && (e.addCharge.supply==='yes' || e.addCharge.project==='yes'));
   const fields = [
     ['additionalCharge','Additional Charge %'], ['labourCess','Labour Cess %'],
     ['freightInsurance','Freight & Insurance %'], ['gst','GST %'],
   ];
   if (showAbstractRates) fields.push(['pv','Price Variation %'], ['contingencies','Contingencies %'], ['centages','Centages %']);
+  const sparesRow = (e.estimateType==='project') ? `
+        <div class="field" style="margin-top:8px">
+          <label>Supply Spares</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
+            <input type="checkbox" ${e.supplySpares?'checked':''} ${readOnly?'disabled':''} onchange="onSupplySparesToggle(this.checked)">
+            Include Supply Spares @ 3% (schemes only)
+          </label>
+        </div>` : '';
   return `
     <div class="collapse" style="margin-top:18px">
       <div class="collapse-head" onclick="toggleCollapse(this)">
         <span class="fw-700 text-sm">⚙ Charge Rates (this estimate)</span><span class="chev">▸</span>
       </div>
       <div class="collapse-body"><div class="collapse-body-inner">
-        <p class="hint mb-1">Overrides the system default rates for this estimate only.</p>
+        <p class="hint mb-1">Overrides the system default rates for this estimate only. Additional Charge reads 0 when it isn't applied.</p>
         <div class="grid grid-4">
-          ${fields.map(f=>`
+          ${fields.map(f=>{ const shown = (f[0]==='additionalCharge' && !acApplied) ? 0 : rates[f[0]];
+            return `
             <div class="field">
               <label>${f[1]}</label>
-              <input type="number" step="0.01" value="${rates[f[0]]}" ${readOnly?'disabled':''}
+              <input type="number" step="0.01" value="${shown}" ${readOnly?'disabled':''}
                 onchange="onChargeRateOverride('${f[0]}', this.value)">
-            </div>`).join('')}
+            </div>`;}).join('')}
         </div>
+        ${sparesRow}
       </div></div>
     </div>`;
 }
+function onSupplySparesToggle(on){ ST.currentEstimate.supplySpares = !!on; ST.dirty = true; renderAbstractBody(); }
 function onChargeRateOverride(key, val) {
   ST.currentEstimate.settings = ST.currentEstimate.settings || {};
   ST.currentEstimate.settings[key] = parseFloat(val)||0;
@@ -4505,18 +4539,23 @@ async function exportEstimateExcel() {
     // TOTAL row — title only (merged Description→GST), GST total at value col
     // (this is the total WITHOUT spares; the spares-inclusive total appears in
     // the calculations below).
-    const totalRow = mk(); totalRow[descCol] = 'TOTAL'; totalRow[valueCol] = (t.preSparesTotal!=null ? t.preSparesTotal : t.total);
+    const totalRow = mk(); totalRow[descCol] = 'Total Amount Including GST'; totalRow[valueCol] = (t.preSparesTotal!=null ? t.preSparesTotal : t.total);
 
     // Charge calculations (these ARE the figures the column totals would show)
     const calc = [];
-    const addCalc = (lbl,val)=>{ const a=mk(); a[0]=lbl; a[valueCol]=val; calc.push(a); };
-    addCalc('Base Cost (Total Ex-works excl. T&D)', t.base);
-    if (t.ac) addCalc('Additional Charge @ '+rateSet.additionalCharge+'%', t.ac);
-    if ((rateSet.labourCess||0)>0) addCalc('Labour Cess @ '+rateSet.labourCess+'%', t.lc);
-    if (t.fi) addCalc('Freight & Insurance @ '+rateSet.freightInsurance+'%', t.fi);
-    if ((rateSet.gst||0)>0) addCalc('GST @ '+rateSet.gst+'%', t.gst);
-    if (t.spares) addCalc('Add: Supply Spares @ 3%', t.spares);
-    addCalc((sectionConfig(key).title||'Section')+' Total'+(t.spares?' (including Spares)':''), t.total);
+    const addCalc = (lbl,val,opts)=>{ const a=mk(); a[0]=lbl; a[valueCol]=val; calc.push(Object.assign({row:a}, opts||{})); };
+    // breakdown (hidden, collapsible)
+    addCalc('', '', {hidden:true, blank:true});
+    addCalc('Base Cost (Total Ex-works excl. T&D)', t.base, {hidden:true});
+    if (t.ac) addCalc('Additional Charge @ '+rateSet.additionalCharge+'%', t.ac, {hidden:true});
+    if ((rateSet.labourCess||0)>0) addCalc('Labour Cess @ '+rateSet.labourCess+'%', t.lc, {hidden:true});
+    if (t.fi) addCalc('Freight & Insurance @ '+rateSet.freightInsurance+'%', t.fi, {hidden:true});
+    if ((rateSet.gst||0)>0) addCalc('GST @ '+rateSet.gst+'%', t.gst, {hidden:true});
+    // visible: amount with GST, then spares add-on and final total
+    if (t.spares) {
+      addCalc('Add: Supply Spares @ 3%', t.spares, {kind:'spare'});
+      addCalc((sectionConfig(key).title||'Section')+' Total (including Spares)', t.total, {kind:'grand'});
+    }
 
     const wordsR = mk();
     wordsR[0] = (t.spares ? 'Total Amount (including Spares) in Words: ' : 'Amount in Words: ') + toWords(Math.round(t.total)) + ' Rupees Only';
@@ -4529,7 +4568,8 @@ async function exportEstimateExcel() {
     const itemEnd = R.length - 1;
     const totalIdx = R.length; R.push(totalRow);
     R.push(mk());                                   // blank (A-L) after TOTAL
-    const calcStart = R.length; calc.forEach(r=>R.push(r));
+    const calcStart = R.length; const calcHiddenRows = [];
+    calc.forEach((c,ix)=>{ R.push(c.row); if (c.hidden) calcHiddenRows.push(calcStart+ix); });
     const calcEnd = R.length - 1;
     R.push(mk());                                   // blank (A-L) before amount-in-words
     const wordsIdx = R.length; R.push(wordsR);
@@ -4546,7 +4586,7 @@ async function exportEstimateExcel() {
     styleMap[colHdrIdx] = 'header';
     styleMap[totalIdx] = 'total';
     styleMap[calcEnd] = 'total';                     // section grand-total row highlighted
-    for (let i=calcStart; i<calcEnd; i++) styleMap[i] = 'subtotal';
+    calc.forEach((c,ix)=>{ styleMap[calcStart+ix] = (c.kind==='grand') ? 'total' : 'subtotal'; });
     applyRowStyles(ws, styleMap, N);
     { const ad=XLSXmod.utils.encode_cell({r:titleIdx,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.section); }
 
@@ -4583,11 +4623,14 @@ async function exportEstimateExcel() {
     M(sigStart, 0, N-1); M(sigStart+1, 0, N-1);       // two blank rows above signatories
     _sig.merges.forEach(m=> ws['!merges'].push(m));
 
-    // signatory rows: centered, sz16, NO inner borders (outer box only)
+    // signatory rows + two blank rows above: WHITE inner gridlines (invisible),
+    // black outer box only.
     const sigRows = [_sig.titleRowIdx-2, _sig.titleRowIdx-1, _sig.titleRowIdx, _sig.officeRowIdx];
+    const _W={style:'thin',color:{rgb:'FFFFFF'}}, _B={style:'thin',color:{rgb:'000000'}};
     sigRows.forEach((r)=>{ for (let c=0;c<N;c++){ const ad=XLSXmod.utils.encode_cell({r,c}); if(!ws[ad]) ws[ad]={t:'s',v:''}; ws[ad].s=ws[ad].s||{};
-      const b={}; if(r===sigRows[0]) b.top={style:'thin',color:{rgb:'000000'}}; if(r===_sig.officeRowIdx) b.bottom={style:'thin',color:{rgb:'000000'}};
-      if(c===0) b.left={style:'thin',color:{rgb:'000000'}}; if(c===N-1) b.right={style:'thin',color:{rgb:'000000'}};
+      const b={ top:_W, bottom:_W, left:_W, right:_W };
+      if(r===sigRows[0]) b.top=_B; if(r===_sig.officeRowIdx) b.bottom=_B;
+      if(c===0) b.left=_B; if(c===N-1) b.right=_B;
       ws[ad].s.border=b; } });
     [_sig.titleRowIdx, _sig.officeRowIdx].forEach((r, idx)=>{
       [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad]) ws[ad].s=Object.assign({}, ws[ad].s, {
@@ -4620,7 +4663,11 @@ async function exportEstimateExcel() {
     ws['!freeze'] = { xSplit:0, ySplit:colHdrIdx+1, topLeftCell:XLSXmod.utils.encode_cell({r:colHdrIdx+1,c:0}), activePane:'bottomLeft', state:'frozen' };
     const secMins = {0:34.5,1:26.2,2:26.2,3:26.2}; secMins[titleIdx]=36.8; secMins[colHdrIdx]=67.5;
     secMins[wordsIdx]=38.2; secMins[_sig.titleRowIdx]=48; secMins[_sig.officeRowIdx]=48;
+    secMins[_sig.titleRowIdx-2]=30; secMins[_sig.titleRowIdx-1]=30;   // two rows above signatories, 1.5x
+    ws['!rows'] = ws['!rows'] || [];
+    calcHiddenRows.forEach(r=>{ ws['!rows'][r] = Object.assign({}, ws['!rows'][r], { hidden:true, level:1 }); });
     autoRowHeights(ws, 14, secMins);
+    calcHiddenRows.forEach(r=>{ ws['!rows'][r] = Object.assign({}, ws['!rows'][r], { hidden:true, level:1 }); });
     XLSXmod.utils.book_append_sheet(wb, ws, sanitizeSheetName(name));
   });
 
