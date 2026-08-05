@@ -2725,9 +2725,17 @@ function autoRowHeights(ws, defaultFontSz=12, mins){
   const colW = (c)=> (cols[c] && cols[c].wch) ? cols[c].wch : 8.43;
   const merges = ws['!merges'] || [];
   const mInfo = {};
-  merges.forEach(m=>{ let w=0; for(let c=m.s.c;c<=m.e.c;c++) w+=colW(c); mInfo[m.s.r+':'+m.s.c] = { w, rows:m.e.r-m.s.r+1 }; });
+  const mergedRows = new Set();
+  merges.forEach(m=>{ let w=0; for(let c=m.s.c;c<=m.e.c;c++) w+=colW(c); mInfo[m.s.r+':'+m.s.c] = { w, rows:m.e.r-m.s.r+1 };
+    for(let r=m.s.r;r<=m.e.r;r++) mergedRows.add(r); });
   const rowsArr = ws['!rows'] = ws['!rows'] || [];
   for (let r=range.s.r; r<=range.e.r; r++){
+    // Plain (non-merged) rows are left WITHOUT a height so Excel applies its own
+    // native auto-fit (same accurate behaviour as the ZEST03 appendix sheet).
+    // Only merged rows and explicitly-pinned rows get a computed height, since
+    // Excel cannot auto-fit those.
+    const forced = (mins && mins[r] != null) || mergedRows.has(r);
+    if (!forced) continue;
     let maxLines = 1, maxSz = defaultFontSz;
     for (let c=range.s.c; c<=range.e.c; c++){
       const ad = window.XLSX.utils.encode_cell({r,c}); const cell = ws[ad];
@@ -2736,8 +2744,6 @@ function autoRowHeights(ws, defaultFontSz=12, mins){
       const w = mi ? mi.w : colW(c);
       const sz = (cell.s && cell.s.font && cell.s.font.sz) || defaultFontSz;
       if (sz > maxSz) maxSz = sz;
-      // condensed Arial fits ~1.5 chars per width-unit at size 11 (conservative
-      // so wrapped text is never cropped — matches Google-Sheets-style auto fit)
       const cpl = Math.max(3, Math.floor(w * (11/sz) * 1.5));
       let lines = 0;
       String(cell.v).split('\n').forEach(seg => lines += Math.max(1, Math.ceil((seg.length||1)/cpl)));
@@ -2746,7 +2752,6 @@ function autoRowHeights(ws, defaultFontSz=12, mins){
       if (perRow > maxLines) maxLines = perRow;
     }
     let h = Math.min(400, Math.max(18, Math.round(maxLines * (maxSz * 1.55) + 8)));
-    // Fixed rows keep at least the approved-sheet height, but still expand to wrap
     if (mins && mins[r] != null) h = Math.max(h, mins[r]);
     rowsArr[r] = Object.assign({}, rowsArr[r], { hpt: h });
   }
@@ -4505,12 +4510,21 @@ async function exportEstimateExcel() {
     }
   }
   aSig.merges.forEach(m=>abs['!merges'].push(m));
+  // signatory block + two rows above: white inner gridlines (invisible), black outer box
+  const _aW={style:'thin',color:{rgb:'FFFFFF'}}, _aB={style:'thin',color:{rgb:'000000'}};
+  const aSigRows = [aSig.titleRowIdx-2, aSig.titleRowIdx-1, aSig.titleRowIdx, aSig.officeRowIdx];
+  aSigRows.forEach((r)=>{ for(let c=0;c<A_COLS;c++){ const ad=XLSXmod.utils.encode_cell({r,c}); if(!abs[ad]) abs[ad]={t:'s',v:''}; abs[ad].s=abs[ad].s||{};
+    const b={ top:_aW, bottom:_aW, left:_aW, right:_aW };
+    if(r===aSigRows[0]) b.top=_aB; if(r===aSig.officeRowIdx) b.bottom=_aB;
+    if(c===0) b.left=_aB; if(c===A_COLS-1) b.right=_aB;
+    abs[ad].s.border=b; } });
   [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); });
   applyRowStyles(abs, absStyleMap, A_COLS);
   applyMsetclHeaderBanner(abs, A_COLS);
   const absMins = {0:26.1, 1:26.2, 2:40.5, 3:26.2, 4:28.5};
   absMins[colHdrIdx] = 28.5;
   absMins[aSig.titleRowIdx] = 42; absMins[aSig.officeRowIdx] = 42;
+  absMins[aSig.titleRowIdx-2] = 30; absMins[aSig.titleRowIdx-1] = 30;   // two rows above signatories, 1.5x
   abs['!freeze'] = { xSplit:0, ySplit:colHdrIdx+1, topLeftCell:XLSXmod.utils.encode_cell({r:colHdrIdx+1,c:0}), activePane:'bottomLeft', state:'frozen' };
   autoRowHeights(abs, 12, absMins);
   XLSXmod.utils.book_append_sheet(wb, abs, 'Abstract');
@@ -4539,7 +4553,7 @@ async function exportEstimateExcel() {
     // TOTAL row — title only (merged Description→GST), GST total at value col
     // (this is the total WITHOUT spares; the spares-inclusive total appears in
     // the calculations below).
-    const totalRow = mk(); totalRow[descCol] = 'Total Amount Including GST'; totalRow[valueCol] = (t.preSparesTotal!=null ? t.preSparesTotal : t.total);
+    const totalRow = mk(); totalRow[descCol] = 'Total Amount Including GST : '; totalRow[valueCol] = (t.preSparesTotal!=null ? t.preSparesTotal : t.total);
 
     // Charge calculations (these ARE the figures the column totals would show)
     const calc = [];
@@ -4612,7 +4626,7 @@ async function exportEstimateExcel() {
     // TOTAL row: "TOTAL" title merged Description→(value-1); grand total merged value→status
     M(totalIdx, descCol, valueCol-1);
     M(totalIdx, valueCol, statusCol);
-    { const ad=XLSXmod.utils.encode_cell({r:totalIdx,c:descCol}); if(ws[ad]) ws[ad].s.alignment=Object.assign({},ws[ad].s.alignment,{horizontal:'center',vertical:'center'}); }
+    { const ad=XLSXmod.utils.encode_cell({r:totalIdx,c:descCol}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.alignment=Object.assign({},ws[ad].s.alignment,{horizontal:'right',vertical:'center'}); } }
     M(totalIdx+1, 0, N-1);                            // blank after TOTAL
     for (let i=calcStart;i<=calcEnd;i++){             // calc rows: label A→(value-1), value→status
       M(i, 0, valueCol-1); M(i, valueCol, statusCol);
