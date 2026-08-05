@@ -4593,8 +4593,13 @@ function signatoryBlock(e, colCount, startRow, opts) {
 // ── Item-table rows for a section, matching the reference's rich column
 // layout. Description is duplicated into short+full since SOR data only
 // carries a single description field. ──
-function sectionItemTableRows(key) {
-  const cfg = sectionConfig(key);
+function sectionItemTableRows(key, itemsOverride) {
+  const cfg0 = sectionConfig(key);
+  // itemsOverride lets a caller build a sheet from a hand-picked set of items
+  // while still using this section's charge configuration. The Non-SOR sheets
+  // rely on it: in a ZEST03 estimate every item lands in supply/project/om,
+  // so Non-SOR entries are NOT in the nonsor_* sections at all.
+  const cfg = itemsOverride ? Object.assign({}, cfg0, {items: itemsOverride}) : cfg0;
   const rates = effectiveRates();
   // A charge's column pair appears ONLY when that charge actually applies:
   // AC only when chosen for this section, and LC / F&I / GST only when their
@@ -4849,10 +4854,15 @@ async function exportEstimateExcel() {
   XLSXmod.utils.book_append_sheet(wb, abs, 'Abstract');
 
   // Section sheets
+  // Resolve section PRs through pmoPrResolve(): claims are exclusive and made
+  // in Supply -> ETC -> O&M order. A plain .find() per section scans from the
+  // top, so the label "Project Services PR" (it contains "service") would be
+  // picked for the O&M sheet and that sheet would print the ETC PR number.
+  const _pr = pmoPrResolve(e);
   const sectionDefs = [
-    ['supply','Supply  Material', e.pmoPrEntries.find(p=>p.label.toLowerCase().includes('supply'))],
-    ['project','ETC Part', e.pmoPrEntries.find(p=>p.label.toLowerCase().includes('project')||p.label.toLowerCase().includes('etc'))],
-    ['om','Services Part', e.pmoPrEntries.find(p=>{const l=p.label.toLowerCase(); return l.includes('o&m')||l.includes('om')||l.includes('service');})],
+    ['supply','Supply  Material', _pr.supply],
+    ['project','ETC Part',        _pr.project],
+    ['om','Services Part',        _pr.om],
   ];
   sectionDefs.forEach(def => {
     const key = def[0], name = def[1], prMatch = def[2];
@@ -5026,13 +5036,18 @@ async function exportEstimateExcel() {
   // Non-SOR: MATERIALS and SERVICES get a sheet each. They cannot share one
   // sheet because their charge columns differ (a services section may carry
   // no F&I, so the two have different header sets and column counts).
-  [['nonsor_supply','Non SOR Materials','Estimate ( Non SOR Items ) - For Supply of Items'],
-   ['nonsor_om','Non SOR Services','Estimate ( Non SOR Items ) - For Services']
-  ].forEach(([nsKey, nsSheetName, nsTitle]) => {
-    if (!sectionConfig(nsKey).items.length) return;
+  // Gather Non-SOR entries from EVERY section they can occur in. A regular
+  // estimate keeps them in nonsor_supply / nonsor_om; a ZEST03 estimate keeps
+  // them inline in supply / project / om flagged isCustom. Collect both.
+  const isNonSor = (it)=> !!(it.isCustom || it.version === 'NONSOR');
+  const gather = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items.filter(isNonSor)), []);
+  [['supply', gather(['supply','nonsor_supply']),        'Non SOR Materials', 'Estimate ( Non SOR Items ) - For Supply of Items'],
+   ['om',     gather(['om','project','nonsor_om']),      'Non SOR Services',  'Estimate ( Non SOR Items ) - For Services']
+  ].forEach(([nsKey, nsItems, nsSheetName, nsTitle]) => {
+    if (!nsItems.length) return;
     const header = estimateHeaderRows(e, '');
     let rows = header.concat([[nsTitle]]);
-    rows = rows.concat(sectionItemTableRows(nsKey));
+    rows = rows.concat(sectionItemTableRows(nsKey, nsItems));
     // Signatory footer — this sheet carries the LAST THREE signatories only
     // (no first signatory), per the approved Non-SOR format.
     const nsCols = Math.max(...rows.map(r=>r.length));
@@ -5054,8 +5069,10 @@ async function exportEstimateExcel() {
       }
     }
     (sig.merges||[]).forEach(m=>{ ws['!merges'] = ws['!merges']||[]; ws['!merges'].push(m); });
-    LUXE_BORDER_ALL(ws, rows);
-    drawOuterBorder(ws, rows);
+    // NOTE: gridlines are applied to every sheet by beautifySheet() at export
+    // time — LUXE_BORDER_ALL is a border *object*, not a function, and calling
+    // it as one aborted the whole export.
+    drawOuterBorder(ws);
     applyMsetclHeaderBanner(ws, nsCols);
     autoRowHeights(ws);
     XLSXmod.utils.book_append_sheet(wb, ws, nsSheetName);

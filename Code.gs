@@ -156,9 +156,23 @@ function getOrCreateSS() {
   if (FIXED_SS_ID) {
     return SpreadsheetApp.openById(FIXED_SS_ID);
   }
+  // Resolving by NAME is unstable: if a second file with the same name ever
+  // appears in Drive (a copy, a restore, a shared duplicate), Drive can hand
+  // back the other one and the app silently binds to a different workbook —
+  // which reads as "my saved settings reset after redeploy". Pin the resolved
+  // id in Script Properties the first time and always reopen that same file.
+  var props = PropertiesService.getScriptProperties();
+  var pinned = props.getProperty("BOUND_SS_ID");
+  if (pinned) {
+    try { return SpreadsheetApp.openById(pinned); }
+    catch (e) { props.deleteProperty("BOUND_SS_ID"); }   // file deleted → fall through
+  }
+  var ss;
   var files = DriveApp.getFilesByName(SS_NAME);
-  if (files.hasNext()) return SpreadsheetApp.open(files.next());
-  return SpreadsheetApp.create(SS_NAME);
+  if (files.hasNext()) ss = SpreadsheetApp.open(files.next());
+  else ss = SpreadsheetApp.create(SS_NAME);
+  props.setProperty("BOUND_SS_ID", ss.getId());
+  return ss;
 }
 
 // Additive: never removes/renames columns. Appends any missing
@@ -380,10 +394,21 @@ function setAiAllowedUsers(userIds, actingRole) {
   setConfigValue_("aiAllowedUsers", JSON.stringify(userIds||[]));
   return {ok:true};
 }
+// Allow-list membership must not hinge on exact string identity: ids picked up
+// from a login form vs the Users sheet can differ by case or stray spaces, and
+// a strict indexOf() then silently drops a user's access.
+function idInList_(list, userId) {
+  var want = String(userId == null ? "" : userId).trim().toLowerCase();
+  if (!want) return false;
+  for (var i = 0; i < (list || []).length; i++) {
+    if (String(list[i] == null ? "" : list[i]).trim().toLowerCase() === want) return true;
+  }
+  return false;
+}
 function isUserAiAllowed_(userId, role) {
   if (role === "admin") return true;
   var list = tryParse(getConfigValue_("aiAllowedUsers", "[]"), []);
-  return list.indexOf(userId) > -1;
+  return idInList_(list, userId);
 }
 function getPrintAllowedUsers() {
   var list = tryParse(getConfigValue_("printAllowedUsers", "[]"), []);
@@ -420,7 +445,7 @@ function setSorCode(version, code, actingRole) {
 function isUserPrintAllowed_(userId, role) {
   if (role === "admin") return true;
   var list = tryParse(getConfigValue_("printAllowedUsers", "[]"), []);
-  return list.indexOf(userId) > -1;
+  return idInList_(list, userId);
 }
 
 // ── Calls Anthropic's Messages API with the user's natural-language
