@@ -9223,8 +9223,15 @@ function isPmoReferenceLabel(label){
 // Tr.Line — so the Final Estimate is priced EXACTLY as that estimate would be.
 // SoR membership + Non-SOR reference, resolved from the loaded catalogs.
 function feIsSorItem(matNo){
+  const cache = ST.sorCache;
+  // The SOR catalog loads asynchronously under lite boot. If it has not
+  // arrived yet, an empty cache would mark EVERY item Non-SoR — which then
+  // paints the whole Supply sheet yellow and sweeps every item into the
+  // Non-SOR sheets. Treat "catalog not loaded" as SoR, the prior behaviour,
+  // and let the real check run once the catalog is present.
+  if (!cache || !cache.length) return true;
   const id = String(matNo||'');
-  return !!(ST.sorCache && ST.sorCache.some(x => String(x.item_no) === id));
+  return cache.some(x => String(x.item_no) === id);
 }
 function feNonSorRemark(matNo){
   const id = String(matNo||'');
@@ -9450,6 +9457,10 @@ async function feReadZest(evt){
   if (!file) return;
   toast('Reading ZEST03…','ok',1500);
   try {
+    // SoR status and Non-SOR remarks are resolved against these catalogs, so
+    // they must be present BEFORE the estimate is built — otherwise every item
+    // is classified against an empty cache.
+    await Promise.all([ensureSorLoaded(), ensureNonSorLoaded()]);
     const X = await ensureSheetJS();
     const wb = X.read(await file.arrayBuffer(), {type:'array'});
     let name = wb.SheetNames.find(n=>/zest\s*0?3/i.test(n));
