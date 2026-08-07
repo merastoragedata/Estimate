@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Estimation and Proposal Management</title>
+<script>
+/* Build stamp. Check the live site is running this file:
+   open the browser console (F12) — the build id is printed on load.
+   It is also shown at the bottom-right of the login screen. */
+window.__BUILD = "2026-08-06-p";
+document.addEventListener("DOMContentLoaded", function(){
+  var el = document.createElement("div");
+  el.id = "build-stamp";
+  el.textContent = "build " + window.__BUILD;
+  document.body.appendChild(el);
+});
+console.log("%c EPM build " + window.__BUILD + " ", "background:#b8860b;color:#fff;font-weight:700;padding:2px 6px;border-radius:3px");
+</script>
 <meta name="description" content="EHV Substation Engineering · Cost Estimation Portal · MSETCL">
 <script>
 /* ── EARLY BOOT FETCH ──────────────────────────────────────────────────────
@@ -17,9 +30,10 @@
 window.__EARLY_BOOT = (function () {
   try {
     if (!window.fetch || !window.localStorage) return null;
-    var url = localStorage.getItem('msetcl_script_url') ||
-      "https://script.google.com/macros/s/AKfycbzsFku6f9Sb5AlJnhTiyzZLZWx6S2LQmx-3qXtjbHPfVC8S-xDHJAEka2D5wcrq_S_H/exec";
-    var raw = localStorage.getItem('msetcl_login_token');
+    // ⚠ SET THIS — must match BACKEND_URL further down in this file.
+    var url = localStorage.getItem('epm_backend_url') ||
+      "https://vjakvbaxkspozyplpnan.supabase.co/functions/v1/epm-api";
+    var raw = localStorage.getItem(TOKEN_KEY);
     if (!url || !raw) return null;                 // logged out → login screen, nothing to prefetch
     var tok = JSON.parse(raw);
     if (!tok || !tok.id) return null;
@@ -36,7 +50,7 @@ window.__EARLY_BOOT = (function () {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"></noscript>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2026-08-06-p">
 </head>
 <body>
 <div id="app"></div>
@@ -63,1114 +77,24 @@ window.__hideBootSplash = function () {
 setTimeout(function () { window.__hideBootSplash(); }, 12000);
 </script>
 <script>
-const APPS_SCRIPT_CODE = `// ═══════════════════════════════════════════════════════════════
-// MSETCL Estimate Generator – Google Apps Script Backend v5
-// ═══════════════════════════════════════════════════════════════
-// DEPLOY: Extensions → Apps Script → Deploy → New Deployment
-//         Type: Web App | Execute as: Me | Access: Anyone
-//
-// MIGRATION NOTE (v4 → v5): This version ADDS columns to existing
-// sheets via getOrCreateSheet's additive-column logic. It does NOT
-// delete or rename any existing column, so all current SOR items,
-// users, and saved estimates are preserved untouched. New columns
-// added to Estimates: estimateType, supplySpares, amcAmount,
-// amcRemark, viewerVisible, progress (JSON: stages/financial/
-// orderClosed/images), supplyTotal, projectTotal, omTotal,
-// nonSorSupplyTotal, nonSorOmTotal. The legacy "sentForApproval"
-// and "approvalRemarks" columns remain in the sheet (untouched, for
-// safety) but are no longer read or written by this script — the
-// 25-stage checklist replaces them, stored inside the "progress"
-// JSON column. The TCodes/Processes sheets gain a "status" column
-// (approved|pending) — existing rows have no value, treated as
-// "approved" by getTCodes/getProcesses for backward compatibility.
-// ═══════════════════════════════════════════════════════════════
-
-// BACKEND_VERSION — bump this whenever the action set changes. Surfaced by
-// ping() so the Admin Panel's "Test Connection" can prove whether the
-// deployment you're actually hitting has the latest actions (e.g. image
-// upload) or whether you're calling a stale/different deployment URL.
-var BACKEND_VERSION = "v13-signatories-2026-06-22";
-
-var SS_NAME = "MSETCL Estimate Generator DB";
-
-// ── PIN TO A SPECIFIC SPREADSHEET (recommended) ──────────────────
-// Paste your existing/production spreadsheet's ID below to guarantee this
-// script always uses that exact file, regardless of name or which Google
-// account owns it relative to whoever deployed the script. Find the ID in
-// the spreadsheet's URL: https://docs.google.com/spreadsheets/d/<THIS_PART>/edit
-// Leave as "" to fall back to find-or-create-by-name (the old, fragile
-// behavior — only safe if you're certain only one account/file is in play).
-var FIXED_SS_ID = "";
-var SHEET_SOR       = "SOR_Database";
-var SHEET_ESTIMATES = "Estimates";
-var SHEET_ITEMS     = "Estimate_Items";
-var SHEET_USERS     = "Users";
-var SHEET_NONSOR    = "NonSOR_Items";
-var SHEET_TCODES    = "TCodes";
-var SHEET_PROCESSES = "Processes";
-
-var SOR_HDR    = ["item_no","description","uom","rate","section","version"];
-
-// EST_HDR: additive — old columns kept in original order/position,
-// new columns appended at the end so existing rows stay valid.
-var EST_HDR    = ["id","name","number","date","division","ref","work",
-                  "sorVersions","addCharge","settings","finalTotal",
-                  "savedAt","status","itemCount","ownerId","ownerName",
-                  "audited","sentForApproval","approvalRemarks",
-                  "remark1","remark2","remark3","remark4","remark5",
-                  "viewerVisible","estimateType","amcAmount","progressImages",
-                  // ── new in v5 ──
-                  "supplySpares","amcRemark","progress",
-                  "supplyTotal","projectTotal","omTotal",
-                  "nonSorSupplyTotal","nonSorOmTotal",
-                  // ── new in v6 ──
-                  "trLineMode","landCompChargePct","centagesOverridden",
-                  // ── new in v7 ──
-                  "pmoPrEntries",
-                  // ── new in v8 ──
-                  "prSettings"];
-
-var ITEM_HDR   = ["estimate_id","item_no","version","description",
-                  "uom","rate","qty","section","remarks","isCustom"];
-var USER_HDR   = ["id","name","passHash","role","status","createdAt"];
-var NONSOR_HDR = ["item_no","description","uom","rate","section","remarks","addedBy","addedAt"];
-var TCODE_HDR  = ["tcode","purpose","description","remarks","addedBy","addedAt","status","image"];
-var PROC_HDR   = ["name","description","remarks","addedBy","addedAt","status","image"];
-
-// ── CORS helper ─────────────────────────────────────────────────
-function cors(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ── GET ────────────────────────────────────────────────────────
-function doGet(e) {
-  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "ping";
-  var result;
-  try {
-    if      (action === "ping")           result = ping();
-    else if (action === "init")           result = initDB();
-    else if (action === "getSOR")         result = getSOR(e.parameter.version || "");
-    else if (action === "getSORVersions") result = getSORVersions();
-    else if (action === "getEstimates")   result = getEstimates(e.parameter.userId||"", e.parameter.role||"");
-    else if (action === "getEstimate")    result = getEstimate(e.parameter.id || "", e.parameter.userId||"", e.parameter.role||"");
-    else if (action === "getUsers")       result = getUsers();
-    else if (action === "getNonSOR")      result = getNonSOR();
-    else if (action === "getTCodes")      result = getTCodes();
-    else if (action === "getProcesses")   result = getProcesses();
-    else if (action === "getChargeRates") result = getChargeRates();
-    else if (action === "bootstrap")      result = bootstrap(e.parameter.userId||"", e.parameter.role||"", e.parameter.lite === "1");
-    else if (action === "getAnthropicApiKeyStatus") result = getAnthropicApiKeyStatus();
-    else if (action === "getAiAllowedUsers")        result = getAiAllowedUsers();
-    else if (action === "getPrintAllowedUsers")     result = getPrintAllowedUsers();
-    else if (action === "setPrintAllowedUsers")     result = setPrintAllowedUsers(body.userIds, body.actingRole||"");
-    else result = {ok:false, error:"Unknown action: "+action};
-  } catch(err) {
-    result = {ok:false, error:err.toString(), stack: err.stack||""};
-  }
-  return cors(result);
-}
-
-// ── POST ───────────────────────────────────────────────────────
-function doPost(e) {
-  var result;
-  try {
-    var body = JSON.parse(e.postData.contents);
-    var action = body.action || "";
-    if      (action === "saveEstimate")    result = saveEstimate(body.estimate, body.items);
-    else if (action === "deleteEstimate")  result = deleteEstimate(body.id, body.userId||"", body.role||"");
-    else if (action === "importSOR")       result = importSOR(body.items, body.version);
-    else if (action === "setSorCode")      result = setSorCode(body.version, body.code, body.actingRole||"");
-    else if (action === "getSorCodes")     result = getSorCodes();
-    else if (action === "setDefaultSorVersion") result = setDefaultSorVersion(body.version, body.actingRole||"");
-    else if (action === "setUserDefaultSignatories") result = setUserDefaultSignatories(body.userId, body.signatories);
-    else if (action === "registerUser")    result = registerUser(body.user);
-    else if (action === "loginUser")       result = loginUser(body.id, body.passHash);
-    else if (action === "saveUser")        result = saveUser(body.user, body.actingRole||"");
-    else if (action === "deleteUser")      result = deleteUser(body.id, body.actingRole||"");
-    else if (action === "approveUser")     result = approveUser(body.id, body.approve, body.actingRole||"");
-    else if (action === "changePassword")  result = changePassword(body.id, body.oldHash, body.newHash);
-    else if (action === "addNonSOR")       result = addNonSOR(body.item);
-    else if (action === "updateNonSOR")    result = updateNonSOR(body.item, body.actingRole||"");
-    else if (action === "deleteNonSOR")    result = deleteNonSOR(body.item_no, body.actingRole||"");
-    else if (action === "addTCode")        result = addTCode(body.item);
-    else if (action === "updateTCode")     result = updateTCode(body.item, body.userId||"", body.role||"");
-    else if (action === "deleteTCode")     result = deleteTCode(body.tcode, body.userId||"", body.role||"");
-    else if (action === "addProcess")      result = addProcess(body.item);
-    else if (action === "updateProcess")   result = updateProcess(body.item, body.userId||"", body.role||"");
-    else if (action === "deleteProcess")   result = deleteProcess(body.name, body.userId||"", body.role||"");
-    else if (action === "resetChargeRates")result = resetChargeRates();
-    else if (action === "saveChargeRates") result = saveChargeRates(body.rates, body.actingRole||"");
-    else if (action === "uploadEstimateImage") result = uploadEstimateImage(body.estimateId, body.estimateName, body.fileName, body.mimeType, body.base64Data);
-    else if (action === "deleteEstimateImage") result = deleteEstimateImage(body.fileId);
-    else if (action === "uploadTcpImage")  result = uploadTcpImage(body.kind, body.key, body.fileName, body.mimeType, body.base64Data);
-    else if (action === "saveAnthropicApiKey") result = saveAnthropicApiKey(body.apiKey, body.actingRole||"");
-    else if (action === "setAiAllowedUsers")   result = setAiAllowedUsers(body.userIds, body.actingRole||"");
-    else if (action === "aiCreateEstimateDraft") result = aiCreateEstimateDraft(body.userId||"", body.role||"", body.requestText, body.sorExcerpt||"", body.nonSorExcerpt||"");
-    else result = {ok:false, error:"Unknown action: "+action};
-  } catch(err) {
-    result = {ok:false, error:err.toString()};
-  }
-  return cors(result);
-}
-
-// ── SPREADSHEET HELPERS ────────────────────────────────────────
-function getOrCreateSS() {
-  if (FIXED_SS_ID) {
-    return SpreadsheetApp.openById(FIXED_SS_ID);
-  }
-  var files = DriveApp.getFilesByName(SS_NAME);
-  if (files.hasNext()) return SpreadsheetApp.open(files.next());
-  return SpreadsheetApp.create(SS_NAME);
-}
-
-// Additive: never removes/renames columns. Appends any missing
-// trailing headers to existing sheets so old rows stay valid.
-function getOrCreateSheet(ss, name, headers) {
-  var sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, headers.length)
-         .setBackground("#0F2044")
-         .setFontColor("#FFFFFF")
-         .setFontWeight("bold");
-  } else if (sheet.getLastColumn() < headers.length) {
-    var curHeaders = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
-    for (var i = curHeaders.length; i < headers.length; i++) {
-      sheet.getRange(1, i+1).setValue(headers[i])
-           .setBackground("#0F2044").setFontColor("#FFFFFF").setFontWeight("bold");
-    }
-  }
-  return sheet;
-}
-
-function tryParse(val, def) {
-  if (val === null || val === undefined || val === "") return def;
-  try { return JSON.parse(val); } catch(e) { return def; }
-}
-
-// ── DRIVE IMAGE STORAGE ──────────────────────────────────────────
-// Progress images and T-Code/Process images are stored as real Drive files
-// (not base64-in-sheet) under a root folder, with one subfolder per
-// estimate created lazily on first image upload for that estimate.
-var DRIVE_ROOT_FOLDER_NAME = "MSETCL Estimate Generator - Images";
-
-function getOrCreateDriveRootFolder_() {
-  var folders = DriveApp.getFoldersByName(DRIVE_ROOT_FOLDER_NAME);
-  if (folders.hasNext()) return folders.next();
-  return DriveApp.createFolder(DRIVE_ROOT_FOLDER_NAME);
-}
-function getOrCreateEstimateFolder_(estimateId, estimateName) {
-  var root = getOrCreateDriveRootFolder_();
-  var folderName = estimateName ? (estimateName + " [" + estimateId + "]") : estimateId;
-  var existing = root.getFoldersByName(folderName);
-  if (existing.hasNext()) return existing.next();
-  return root.createFolder(folderName);
-}
-function getOrCreateTcpFolder_() {
-  var root = getOrCreateDriveRootFolder_();
-  var name = "TCode_Process_Images";
-  var existing = root.getFoldersByName(name);
-  if (existing.hasNext()) return existing.next();
-  return root.createFolder(name);
-}
-
-function uploadEstimateImage(estimateId, estimateName, fileName, mimeType, base64Data) {
-  if (!estimateId) return {ok:false, error:"Missing estimate ID — save the estimate before adding images"};
-  if (!base64Data) return {ok:false, error:"No image data received"};
-  try {
-    var folder = getOrCreateEstimateFolder_(estimateId, estimateName);
-    var bytes = Utilities.base64Decode(base64Data);
-    var blob = Utilities.newBlob(bytes, mimeType||"image/jpeg", fileName||("image_"+new Date().getTime()+".jpg"));
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return {ok:true, fileId: file.getId(), url: "https://drive.google.com/uc?id="+file.getId(), viewUrl: file.getUrl()};
-  } catch(err) {
-    return {ok:false, error:"Drive upload failed: "+err.toString()};
-  }
-}
-function deleteEstimateImage(fileId) {
-  if (!fileId) return {ok:false, error:"Missing file ID"};
-  try {
-    DriveApp.getFileById(fileId).setTrashed(true);
-    return {ok:true};
-  } catch(err) {
-    return {ok:false, error:"Delete failed: "+err.toString()};
-  }
-}
-function uploadTcpImage(kind, key, fileName, mimeType, base64Data) {
-  if (!key) return {ok:false, error:"Missing T Code / Process key"};
-  if (!base64Data) return {ok:false, error:"No image data received"};
-  try {
-    var folder = getOrCreateTcpFolder_();
-    var bytes = Utilities.base64Decode(base64Data);
-    var blob = Utilities.newBlob(bytes, mimeType||"image/jpeg", fileName||((kind||"item")+"_"+key+".jpg"));
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    var url = "https://drive.google.com/uc?id="+file.getId();
-    // Persist the URL directly onto the TCode/Process row
-    var ss = getOrCreateSS();
-    if (kind === "tcode") {
-      var tSheet = getOrCreateSheet(ss, SHEET_TCODES, TCODE_HDR);
-      var tRow = findTCodeRow_(tSheet, key);
-      if (tRow > -1) tSheet.getRange(tRow, 8).setValue(url);
-    } else {
-      var pSheet = getOrCreateSheet(ss, SHEET_PROCESSES, PROC_HDR);
-      var pRow = findProcessRow_(pSheet, key);
-      if (pRow > -1) pSheet.getRange(pRow, 7).setValue(url);
-    }
-    return {ok:true, url: url, fileId: file.getId(), viewUrl: file.getUrl()};
-  } catch(err) {
-    return {ok:false, error:"Drive upload failed: "+err.toString()};
-  }
-}
-
-// ── PING ───────────────────────────────────────────────────────
-function ping() {
-  try {
-    var files = DriveApp.getFilesByName(SS_NAME);
-    var exists = files.hasNext();
-    var sorRows = 0, estRows = 0, ssUrl = "", ssId = "", ssName2 = SS_NAME;
-    if (exists) {
-      var ss = SpreadsheetApp.open(files.next());
-      ssUrl  = ss.getUrl();
-      ssId   = ss.getId();
-      ssName2= ss.getName();
-      var sorSheet = ss.getSheetByName(SHEET_SOR);
-      var estSheet = ss.getSheetByName(SHEET_ESTIMATES);
-      if (sorSheet) sorRows = Math.max(0, sorSheet.getLastRow() - 1);
-      if (estSheet) estRows = Math.max(0, estSheet.getLastRow() - 1);
-    }
-    return {
-      ok: true, ssExists: exists, ssId: ssId, ssUrl: ssUrl, ssName: ssName2,
-      sorRows: sorRows, estRows: estRows, initialized: exists,
-      backendVersion: BACKEND_VERSION, hasImageActions: true
-    };
-  } catch(err) {
-    return {ok:false, error:err.toString()};
-  }
-}
-
-// ── INIT ───────────────────────────────────────────────────────
-function initDB() {
-  var ss = getOrCreateSS();
-  getOrCreateSheet(ss, SHEET_SOR,       SOR_HDR);
-  getOrCreateSheet(ss, SHEET_ESTIMATES, EST_HDR);
-  getOrCreateSheet(ss, SHEET_ITEMS,     ITEM_HDR);
-  getOrCreateSheet(ss, SHEET_NONSOR,    NONSOR_HDR);
-  getOrCreateSheet(ss, SHEET_TCODES,    TCODE_HDR);
-  getOrCreateSheet(ss, SHEET_PROCESSES, PROC_HDR);
-  var userSheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  ensureSeedAdmin_(userSheet);
-  var cfgSheet = ss.getSheetByName("Config");
-  if (!cfgSheet) {
-    cfgSheet = ss.insertSheet("Config");
-    cfgSheet.getRange(1,1,1,2).setValues([["key","value"]]);
-    cfgSheet.getRange(1,1,1,2).setBackground("#0F2044").setFontColor("#FFFFFF").setFontWeight("bold");
-    cfgSheet.appendRow(["chargeRates", JSON.stringify(defaultChargeRates())]);
-  }
-  var def = ss.getSheetByName("Sheet1");
-  if (def && ss.getSheets().length > 1) {
-    try { ss.deleteSheet(def); } catch(e) {}
-  }
-  return {ok:true, ssUrl:ss.getUrl(), ssId:ss.getId(), message:"Initialized"};
-}
-
-function hashPassGS(p) {
-  var h = 0;
-  for (var i=0;i<p.length;i++){ h = ((h<<5)-h)+p.charCodeAt(i); h |= 0; }
-  return 'h'+Math.abs(h).toString(36);
-}
-
-// ── CHARGE RATES (system defaults, admin-editable) ────────────
-function defaultChargeRates() {
-  return {additionalCharge:15, labourCess:1, freightInsurance:5, gst:18, pv:5, contingencies:3, centages:10};
-}
-function getConfigSheet_(ss) {
-  var sheet = ss.getSheetByName("Config");
-  if (!sheet) {
-    sheet = ss.insertSheet("Config");
-    sheet.getRange(1,1,1,2).setValues([["key","value"]]);
-    sheet.getRange(1,1,1,2).setBackground("#0F2044").setFontColor("#FFFFFF").setFontWeight("bold");
-  }
-  return sheet;
-}
-// ── Generic config key/value read/write, reused for the Anthropic API key,
-// the AI-estimate-creator allow-list, and any other single-value settings. ──
-function getConfigValue_(key, def) {
-  var ss = getOrCreateSS();
-  var sheet = getConfigSheet_(ss);
-  if (sheet.getLastRow() < 2) return def;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,2).getValues();
-  for (var i=0;i<data.length;i++) if (data[i][0]===key) return data[i][1];
-  return def;
-}
-function setConfigValue_(key, value) {
-  var ss = getOrCreateSS();
-  var sheet = getConfigSheet_(ss);
-  var data = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,2).getValues() : [];
-  for (var i=0;i<data.length;i++) {
-    if (data[i][0]===key) { sheet.getRange(i+2,2).setValue(value); return; }
-  }
-  sheet.appendRow([key, value]);
-}
-
-// ── AI Estimate Creator — admin sets a shared Anthropic API key once;
-// approved users (admin allow-list) can use natural-language estimate
-// creation. The key is NEVER returned to the frontend — only used
-// server-side when calling the Anthropic API. ──
-function saveAnthropicApiKey(apiKey, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can set the API key"};
-  setConfigValue_("anthropicApiKey", apiKey||"");
-  return {ok:true};
-}
-function getAnthropicApiKeyStatus() {
-  var key = getConfigValue_("anthropicApiKey", "");
-  return {ok:true, configured: !!key};
-}
-function getAiAllowedUsers() {
-  var list = tryParse(getConfigValue_("aiAllowedUsers", "[]"), []);
-  return {ok:true, users: list};
-}
-function setAiAllowedUsers(userIds, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can manage this list"};
-  setConfigValue_("aiAllowedUsers", JSON.stringify(userIds||[]));
-  return {ok:true};
-}
-function isUserAiAllowed_(userId, role) {
-  if (role === "admin") return true;
-  var list = tryParse(getConfigValue_("aiAllowedUsers", "[]"), []);
-  return list.indexOf(userId) > -1;
-}
-function getPrintAllowedUsers() {
-  var list = tryParse(getConfigValue_("printAllowedUsers", "[]"), []);
-  return {ok:true, users: list};
-}
-function setPrintAllowedUsers(userIds, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can manage this list"};
-  setConfigValue_("printAllowedUsers", JSON.stringify(userIds||[]));
-  return {ok:true};
-}
-function setUserDefaultSignatories(userId, signatories) {
-  if (!userId) return {ok:false, error:"Missing userId"};
-  setConfigValue_("userSig_" + userId, JSON.stringify(signatories||[]));
-  return {ok:true};
-}
-function getUserDefaultSignatories_(userId) {
-  return tryParse(getConfigValue_("userSig_" + userId, "[]"), []);
-}
-function setDefaultSorVersion(version, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can set the default SOR version"};
-  setConfigValue_("defaultSorVersion", version||"");
-  return {ok:true, version: version||""};
-}
-function getSorCodes() {
-  return {ok:true, codes: tryParse(getConfigValue_("sorCodes", "{}"), {})};
-}
-function setSorCode(version, code, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can set SOR codes"};
-  var map = tryParse(getConfigValue_("sorCodes", "{}"), {});
-  map[version] = code;
-  setConfigValue_("sorCodes", JSON.stringify(map));
-  return {ok:true, codes: map};
-}
-function isUserPrintAllowed_(userId, role) {
-  if (role === "admin") return true;
-  var list = tryParse(getConfigValue_("printAllowedUsers", "[]"), []);
-  return list.indexOf(userId) > -1;
-}
-
-// ── Calls Anthropic's Messages API with the user's natural-language
-// estimate request plus a compact SOR/Non-SOR catalog excerpt, asking for
-// a structured JSON item list back. Returns {ok, items:[{item_no,
-// description, uom, rate, section, qty, source, remark}], explanation}. ──
-function aiCreateEstimateDraft(userId, role, requestText, sorExcerpt, nonSorExcerpt) {
-  if (!isUserAiAllowed_(userId, role)) return {ok:false, error:"You are not approved for AI Estimate Creator. Ask an admin to enable access."};
-  var apiKey = getConfigValue_("anthropicApiKey", "");
-  if (!apiKey) return {ok:false, error:"AI Estimate Creator is not configured yet. An admin must set the Anthropic API key in Admin Panel."};
-  if (!requestText || !requestText.trim()) return {ok:false, error:"Describe what you need in the estimate first."};
-
-  var systemPrompt = "You are an assistant that converts an MSETCL EHV substation engineer's natural-language estimate request into a structured list of line items, using ONLY the provided SOR (Schedule of Rates) and Non-SOR catalog excerpts. " +
-    "For each item needed, pick the closest matching catalog entry and a reasonable quantity based on the request. " +
-    "If something is needed but not in either catalog, invent a reasonable industry-standard description, UOM, and rate, and mark source as 'estimated' with a remark explaining it's not from the catalog. " +
-    "Respond with ONLY a JSON object (no markdown, no prose) of the exact shape: " +
-    '{"items":[{"item_no":"...","description":"...","uom":"...","rate":0,"section":"supply|project|om","qty":0,"source":"sor|nonsor|estimated","remark":""}],"explanation":"one paragraph summary of what was included and why"}';
-
-  var userPrompt = "Request: " + requestText + "\\n\\nSOR catalog excerpt (item_no | description | uom | rate | section):\\n" + sorExcerpt +
-    "\\n\\nNon-SOR catalog excerpt (item_no | description | uom | rate | section):\\n" + nonSorExcerpt;
-
-  var payload = {
-    model: "claude-sonnet-4-6",
-    max_tokens: 4000,
-    system: systemPrompt,
-    messages: [{role:"user", content: userPrompt}]
-  };
-  var options = {
-    method: "post",
-    contentType: "application/json",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
-  try {
-    var resp = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", options);
-    var code = resp.getResponseCode();
-    var body = resp.getContentText();
-    if (code !== 200) {
-      var errMsg = "Anthropic API error (" + code + ")";
-      try { var errJson = JSON.parse(body); if (errJson.error && errJson.error.message) errMsg += ": " + errJson.error.message; } catch(e2) {}
-      return {ok:false, error: errMsg};
-    }
-    var data = JSON.parse(body);
-    var textBlock = "";
-    for (var i=0;i<(data.content||[]).length;i++) {
-      if (data.content[i].type === "text") { textBlock += data.content[i].text; }
-    }
-    var cleaned = textBlock.trim().replace(/^\`\`\`json/i,"").replace(/^\`\`\`/,"").replace(/\`\`\`$/,"").trim();
-    var parsed;
-    try { parsed = JSON.parse(cleaned); } catch(e3) {
-      return {ok:false, error:"AI response could not be parsed as JSON. Try rephrasing your request."};
-    }
-    return {ok:true, items: parsed.items||[], explanation: parsed.explanation||""};
-  } catch(err) {
-    return {ok:false, error:"AI request failed: "+err.toString()};
-  }
-}
-
-// ── BOOTSTRAP — combines everything the frontend needs on app load into a
-// single round trip (SOR versions, Non-SOR items, T-Codes, Processes,
-// Estimates, charge rates, and — for admins — Users). Cuts boot latency
-// from ~6-7 sequential/parallel Apps Script round trips down to one,
-// since each individual getX() call still pays its own Apps Script
-// execution overhead even when fired in parallel from the client.
-function bootstrap(userId, role, lite) {
-  // "lite" powers the FIRST load: it returns only what the Home page needs.
-  // T-Codes, Processes and the Non-SOR catalog are fetched later, on demand,
-  // by the pages that actually use them.
-  var sorV = getSORVersions();
-  var estimates = getEstimates(userId, role);
-  var rates = getChargeRates();
-  var nonSor = lite ? null : getNonSOR();
-  var tcodes = lite ? null : getTCodes();
-  var procs  = lite ? null : getProcesses();
-  var result = {
-    ok: true,
-    lite: !!lite,
-    sorVersions: sorV.ok ? sorV.versions : [],
-    sorVersionCounts: sorV.ok ? sorV.counts : {},
-    nonSor: (nonSor && nonSor.ok) ? nonSor.items : [],
-    tcodes: (tcodes && tcodes.ok) ? tcodes.items : [],
-    processes: (procs && procs.ok) ? procs.items : [],
-    estimates: estimates.ok ? estimates.estimates : [],
-    chargeRates: rates.ok ? rates.rates : defaultChargeRates(),
-    aiAllowed: isUserAiAllowed_(userId, role),
-    printAllowed: isUserPrintAllowed_(userId, role),
-    sorCodes: tryParse(getConfigValue_("sorCodes", "{}"), {}),
-    defaultSorVersion: getConfigValue_("defaultSorVersion", ""),
-    userDefaultSignatories: getUserDefaultSignatories_(userId),
-    aiKeyConfigured: !!getConfigValue_("anthropicApiKey", "")
-  };
-  if (role === "admin") {
-    var users = getUsers();
-    result.users = users.ok ? users.users : [];
-  }
-  return result;
-}
-
-function getChargeRates() {
-  var ss = getOrCreateSS();
-  var sheet = getConfigSheet_(ss);
-  var data = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,2).getValues() : [];
-  for (var i=0;i<data.length;i++) {
-    if (data[i][0] === "chargeRates") return {ok:true, rates: tryParse(data[i][1], defaultChargeRates())};
-  }
-  sheet.appendRow(["chargeRates", JSON.stringify(defaultChargeRates())]);
-  return {ok:true, rates: defaultChargeRates()};
-}
-function saveChargeRates(rates, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can change system charge rates"};
-  var ss = getOrCreateSS();
-  var sheet = getConfigSheet_(ss);
-  var data = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,2).getValues() : [];
-  for (var i=0;i<data.length;i++) {
-    if (data[i][0] === "chargeRates") {
-      sheet.getRange(i+2,2).setValue(JSON.stringify(rates));
-      return {ok:true};
-    }
-  }
-  sheet.appendRow(["chargeRates", JSON.stringify(rates)]);
-  return {ok:true};
-}
-function resetChargeRates() {
-  var ss = getOrCreateSS();
-  var sheet = getConfigSheet_(ss);
-  var data = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,2).getValues() : [];
-  var def = defaultChargeRates();
-  for (var i=0;i<data.length;i++) {
-    if (data[i][0] === "chargeRates") {
-      sheet.getRange(i+2,2).setValue(JSON.stringify(def));
-      return {ok:true, rates: def};
-    }
-  }
-  sheet.appendRow(["chargeRates", JSON.stringify(def)]);
-  return {ok:true, rates: def};
-}
-
-// ── SOR ────────────────────────────────────────────────────────
-function getSOR(filterVersion) {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_SOR);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, items:[], total:0};
-  var data = sheet.getRange(2, 1, sheet.getLastRow()-1, SOR_HDR.length).getValues();
-  var items = [];
-  for (var i = 0; i < data.length; i++) {
-    var r = data[i];
-    if (!r[0] || String(r[0]).trim() === "") continue;
-    if (filterVersion && String(r[5]).trim() !== filterVersion) continue;
-    items.push({
-      item_no:     String(r[0]).trim(),
-      description: String(r[1]).trim(),
-      uom:         String(r[2]).trim(),
-      rate:        parseFloat(r[3]) || 0,
-      section:     String(r[4]).trim(),
-      version:     String(r[5]).trim()
-    });
-  }
-  return {ok:true, items:items, total:items.length};
-}
-
-function getSORVersions() {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_SOR);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, versions:[]};
-  var data = sheet.getRange(2, 6, sheet.getLastRow()-1, 1).getValues();
-  var seen = {}, counts = {}, versions = [];
-  for (var i = 0; i < data.length; i++) {
-    var v = String(data[i][0]).trim();
-    if (!v) continue;
-    if (!seen[v]) { seen[v]=true; versions.push(v); counts[v]=0; }
-    counts[v]++;
-  }
-  versions.sort(); // lexicographic; caller resolves "latest" via [...].sort().pop()
-  return {ok:true, versions:versions, counts:counts};
-}
-
-function importSOR(items, version) {
-  if (!items || !items.length) return {ok:false, error:"No items"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_SOR, SOR_HDR);
-  var existing = {};
-  if (sheet.getLastRow() > 1) {
-    var ex = sheet.getRange(2, 1, sheet.getLastRow()-1, 6).getValues();
-    for (var i = 0; i < ex.length; i++) {
-      existing[String(ex[i][0]).trim()+"__"+String(ex[i][5]).trim()] = true;
-    }
-  }
-  var toWrite = [];
-  var versionsSeen = {};
-  for (var j = 0; j < items.length; j++) {
-    var item = items[j];
-    // Per-row version (from an uploaded "version" column) takes priority;
-    // falls back to the single version name supplied for the whole batch.
-    var itemVersion = (item.version && String(item.version).trim()) || version;
-    var key  = String(item.item_no).trim()+"__"+String(itemVersion).trim();
-    if (!existing[key]) {
-      toWrite.push([item.item_no, item.description, item.uom,
-                    item.rate, item.section, itemVersion]);
-      existing[key] = true;
-    }
-    versionsSeen[itemVersion] = (versionsSeen[itemVersion]||0) + 1;
-  }
-  if (toWrite.length > 0) {
-    var bSize = 500;
-    for (var b = 0; b < toWrite.length; b += bSize) {
-      var batch = toWrite.slice(b, b+bSize);
-      sheet.getRange(sheet.getLastRow()+1, 1, batch.length, SOR_HDR.length)
-           .setValues(batch);
-    }
-  }
-  return {
-    ok:true, added: toWrite.length,
-    skipped: items.length - toWrite.length,
-    total:   sheet.getLastRow()-1,
-    versions: Object.keys(versionsSeen)
-  };
-}
-
-// ── NON-SOR ITEMS ────────────────────────────────────────────────
-function getNonSOR() {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_NONSOR);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, items:[]};
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,NONSOR_HDR.length).getValues();
-  var items = [];
-  for (var i=0;i<data.length;i++) {
-    var r = data[i];
-    if (!r[0]) continue;
-    items.push({
-      item_no:     String(r[0]).trim(),
-      description: String(r[1]).trim(),
-      uom:         String(r[2]).trim(),
-      rate:        parseFloat(r[3]) || 0,
-      section:     String(r[4]).trim(),
-      remarks:     String(r[5]||"").trim(),
-      addedBy:     String(r[6]||"").trim(),
-      addedAt:     String(r[7]||"").trim(),
-      version:     "NONSOR"
-    });
-  }
-  return {ok:true, items:items};
-}
-
-function findNonSORRow_(sheet, item_no) {
-  if (sheet.getLastRow() < 2) return -1;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
-  for (var i=0;i<data.length;i++) {
-    if (String(data[i][0]).trim() === String(item_no).trim()) return i+2;
-  }
-  return -1;
-}
-
-function addNonSOR(item) {
-  if (!item || !item.item_no || !item.description) return {ok:false, error:"Missing fields"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_NONSOR, NONSOR_HDR);
-  if (findNonSORRow_(sheet, item.item_no) > -1) {
-    return {ok:false, error:"Item number already exists"};
-  }
-  sheet.appendRow([
-    item.item_no, item.description, item.uom||"", item.rate||0,
-    item.section||"", item.remarks||"", item.addedBy||"", new Date().toISOString()
-  ]);
-  return {ok:true};
-}
-
-function updateNonSOR(item, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can edit Non-SOR items"};
-  if (!item || !item.item_no) return {ok:false, error:"Missing item_no"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_NONSOR, NONSOR_HDR);
-  var origNo = item.origItemNo || item.item_no;
-  var row = findNonSORRow_(sheet, origNo);
-  if (row === -1) return {ok:false, error:"Item not found"};
-  sheet.getRange(row,1,1,8).setValues([[
-    item.item_no, item.description, item.uom||"", item.rate||0,
-    item.section||"", item.remarks||"",
-    sheet.getRange(row,7).getValue(), sheet.getRange(row,8).getValue()
-  ]]);
-  return {ok:true};
-}
-
-function deleteNonSOR(item_no, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can delete Non-SOR items"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_NONSOR, NONSOR_HDR);
-  var row = findNonSORRow_(sheet, item_no);
-  if (row === -1) return {ok:false, error:"Item not found"};
-  sheet.deleteRow(row);
-  return {ok:true};
-}
-
-// ── T-CODES ────────────────────────────────────────────────────
-function getTCodes() {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_TCODES);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, items:[]};
-  var n = Math.max(TCODE_HDR.length, sheet.getLastColumn());
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,n).getValues();
-  var items = [];
-  for (var i=0;i<data.length;i++) {
-    var r = data[i];
-    if (!r[0]) continue;
-    items.push({
-      tcode: String(r[0]).trim(), purpose: String(r[1]||"").trim(),
-      description: String(r[2]||"").trim(), remarks: String(r[3]||"").trim(),
-      addedBy: String(r[4]||"").trim(), addedAt: String(r[5]||"").trim(),
-      image: String(r[7]||"").trim()
-    });
-  }
-  return {ok:true, items:items};
-}
-function findTCodeRow_(sheet, tcode) {
-  if (sheet.getLastRow() < 2) return -1;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
-  for (var i=0;i<data.length;i++) if (String(data[i][0]).trim()===String(tcode).trim()) return i+2;
-  return -1;
-}
-function addTCode(item) {
-  if (!item || !item.tcode) return {ok:false, error:"Missing T Code"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_TCODES, TCODE_HDR);
-  if (findTCodeRow_(sheet, item.tcode) > -1) return {ok:false, error:"T Code already exists"};
-  sheet.appendRow([item.tcode, item.purpose||"", item.description||"",
-                    item.remarks||"", item.addedBy||"", new Date().toISOString(), "approved", item.image||""]);
-  return {ok:true};
-}
-function canEditEntry_(rowOwner, userId, role) {
-  return role === "admin" || rowOwner === userId;
-}
-function updateTCode(item, userId, role) {
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_TCODES, TCODE_HDR);
-  var row = findTCodeRow_(sheet, item.origTcode || item.tcode);
-  if (row === -1) return {ok:false, error:"Not found"};
-  var owner = String(sheet.getRange(row,5).getValue());
-  if (!canEditEntry_(owner, userId, role)) return {ok:false, error:"Not permitted"};
-  var curImage = item.image !== undefined ? item.image : String(sheet.getRange(row,8).getValue()||"");
-  sheet.getRange(row,1,1,8).setValues([[item.tcode, item.purpose||"", item.description||"",
-                    item.remarks||"", owner, sheet.getRange(row,6).getValue(), "approved", curImage]]);
-  return {ok:true};
-}
-function deleteTCode(tcode, userId, role) {
-  if (role !== "admin") return {ok:false, error:"Only admin can delete"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_TCODES, TCODE_HDR);
-  var row = findTCodeRow_(sheet, tcode);
-  if (row === -1) return {ok:false, error:"Not found"};
-  sheet.deleteRow(row);
-  return {ok:true};
-}
-
-// ── PROCESSES ──────────────────────────────────────────────────
-function getProcesses() {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_PROCESSES);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, items:[]};
-  var n = Math.max(PROC_HDR.length, sheet.getLastColumn());
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,n).getValues();
-  var items = [];
-  for (var i=0;i<data.length;i++) {
-    var r = data[i];
-    if (!r[0]) continue;
-    items.push({
-      name: String(r[0]).trim(), description: String(r[1]||"").trim(),
-      remarks: String(r[2]||"").trim(), addedBy: String(r[3]||"").trim(),
-      addedAt: String(r[4]||"").trim(),
-      image: String(r[6]||"").trim()
-    });
-  }
-  return {ok:true, items:items};
-}
-function findProcessRow_(sheet, name) {
-  if (sheet.getLastRow() < 2) return -1;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
-  for (var i=0;i<data.length;i++) if (String(data[i][0]).trim()===String(name).trim()) return i+2;
-  return -1;
-}
-function addProcess(item) {
-  if (!item || !item.name) return {ok:false, error:"Missing name"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_PROCESSES, PROC_HDR);
-  if (findProcessRow_(sheet, item.name) > -1) return {ok:false, error:"Process already exists"};
-  sheet.appendRow([item.name, item.description||"", item.remarks||"",
-                    item.addedBy||"", new Date().toISOString(), "approved", item.image||""]);
-  return {ok:true};
-}
-function updateProcess(item, userId, role) {
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_PROCESSES, PROC_HDR);
-  var row = findProcessRow_(sheet, item.origName || item.name);
-  if (row === -1) return {ok:false, error:"Not found"};
-  var owner = String(sheet.getRange(row,4).getValue());
-  if (!canEditEntry_(owner, userId, role)) return {ok:false, error:"Not permitted"};
-  var curImage = item.image !== undefined ? item.image : String(sheet.getRange(row,7).getValue()||"");
-  sheet.getRange(row,1,1,7).setValues([[item.name, item.description||"", item.remarks||"",
-                    owner, sheet.getRange(row,5).getValue(), "approved", curImage]]);
-  return {ok:true};
-}
-function deleteProcess(name, userId, role) {
-  if (role !== "admin") return {ok:false, error:"Only admin can delete"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_PROCESSES, PROC_HDR);
-  var row = findProcessRow_(sheet, name);
-  if (row === -1) return {ok:false, error:"Not found"};
-  sheet.deleteRow(row);
-  return {ok:true};
-}
-
-// ── USERS ──────────────────────────────────────────────────────
-function getUsers() {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_USERS);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, users:[]};
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,USER_HDR.length).getValues();
-  var users = [];
-  for (var i=0;i<data.length;i++) {
-    var r = data[i];
-    if (!r[0]) continue;
-    users.push({id:String(r[0]).trim(), name:String(r[1]).trim(), role:String(r[3]).trim(),
-                status:String(r[4]).trim(), createdAt:String(r[5]).trim()});
-  }
-  return {ok:true, users:users};
-}
-function findUserRow_(sheet, id) {
-  if (sheet.getLastRow() < 2) return -1;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
-  for (var i=0;i<data.length;i++) if (String(data[i][0]).trim()===String(id).trim()) return i+2;
-  return -1;
-}
-function registerUser(user) {
-  if (!user || !user.id || !user.passHash) return {ok:false, error:"Missing fields"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  ensureSeedAdmin_(sheet);
-  if (findUserRow_(sheet, user.id) > -1) return {ok:false, error:"User ID already exists"};
-  sheet.appendRow([user.id, user.name||user.id, user.passHash, "user", "pending", new Date().toISOString()]);
-  return {ok:true, message:"Registered. Awaiting admin approval."};
-}
-function loginUser(id, passHash) {
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  ensureSeedAdmin_(sheet);
-  var row = findUserRow_(sheet, id);
-  if (row === -1) return {ok:false, error:"User not found"};
-  var r = sheet.getRange(row,1,1,USER_HDR.length).getValues()[0];
-  if (String(r[2]) !== String(passHash)) return {ok:false, error:"Incorrect password"};
-  if (String(r[4]) === "pending") return {ok:false, error:"Account pending admin approval"};
-  if (String(r[4]) === "rejected") return {ok:false, error:"Account access denied"};
-  return {ok:true, user:{id:String(r[0]), name:String(r[1]), role:String(r[3]), status:String(r[4])}};
-}
-// Self-healing seed: if the Users sheet has no data rows at all (fresh
-// deployment where /exec?action=init was never explicitly called), seed the
-// default admin so the very first login never dead-ends. Only acts when the
-// sheet is completely empty of data rows — never touches an existing one.
-function ensureSeedAdmin_(userSheet) {
-  if (userSheet.getLastRow() < 2) {
-    userSheet.appendRow(["admin","Administrator",hashPassGS("admin123"),"admin","approved",new Date().toISOString()]);
-  }
-}
-function changePassword(id, oldHash, newHash) {
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  var row = findUserRow_(sheet, id);
-  if (row === -1) return {ok:false, error:"User not found"};
-  var cur = sheet.getRange(row,3).getValue();
-  if (String(cur) !== String(oldHash)) return {ok:false, error:"Current password incorrect"};
-  sheet.getRange(row,3).setValue(newHash);
-  return {ok:true};
-}
-function saveUser(user, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can edit users"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  var row = findUserRow_(sheet, user.id);
-  if (row === -1) return {ok:false, error:"User not found"};
-  if (user.name)     sheet.getRange(row,2).setValue(user.name);
-  if (user.role)      sheet.getRange(row,4).setValue(user.role);
-  if (user.passHash)  sheet.getRange(row,3).setValue(user.passHash);
-  if (user.status)    sheet.getRange(row,5).setValue(user.status);
-  return {ok:true};
-}
-function approveUser(id, approve, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can approve users"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  var row = findUserRow_(sheet, id);
-  if (row === -1) return {ok:false, error:"User not found"};
-  sheet.getRange(row,5).setValue(approve ? "approved" : "rejected");
-  return {ok:true};
-}
-function deleteUser(id, actingRole) {
-  if (actingRole !== "admin") return {ok:false, error:"Only admin can delete users"};
-  if (id === "admin") return {ok:false, error:"Cannot delete the primary admin account"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_USERS, USER_HDR);
-  var row = findUserRow_(sheet, id);
-  if (row === -1) return {ok:false, error:"User not found"};
-  sheet.deleteRow(row);
-  return {ok:true};
-}
-
-// ── ESTIMATES ──────────────────────────────────────────────────
-function rowToEstimateSummary_(r) {
-  return {
-    id:String(r[0]), name:String(r[1]), number:String(r[2]), date:String(r[3]),
-    division:String(r[4]), ref:String(r[5]), work:String(r[6]),
-    sorVersions: tryParse(r[7], []), addCharge: tryParse(r[8], {}),
-    settings: tryParse(r[9], {}), finalTotal: parseFloat(r[10])||0,
-    savedAt:String(r[11]), status:String(r[12])||"draft", itemCount: parseInt(r[13])||0,
-    ownerId:String(r[14]), ownerName:String(r[15]),
-    audited: r[16]===true||r[16]==="true",
-    remark1:String(r[19]||""), remark2:String(r[20]||""), remark3:String(r[21]||""),
-    remark4:String(r[22]||""), remark5:String(r[23]||""),
-    viewerVisible: r[24]===true||r[24]==="true",
-    estimateType: String(r[25]||"project"),
-    amcAmount: parseFloat(r[26])||0,
-    progressImages: tryParse(r[27], []),
-    supplySpares: r[28]===true||r[28]==="true",
-    amcRemark: String(r[29]||""),
-    progress: tryParse(r[30], defaultProgress_()),
-    supplyTotal: parseFloat(r[31])||0, projectTotal: parseFloat(r[32])||0,
-    omTotal: parseFloat(r[33])||0, nonSorSupplyTotal: parseFloat(r[34])||0,
-    nonSorOmTotal: parseFloat(r[35])||0,
-    trLineMode: r[36]===true||r[36]==="true",
-    landCompChargePct: r[37]!==undefined && r[37]!=="" ? parseFloat(r[37]) : 15,
-    centagesOverridden: r[38]===true||r[38]==="true",
-    pmoPrEntries: tryParse(r[39], []),
-    prSettings: tryParse(r[40], null)
-  };
-}
-function defaultProgress_() {
-  var stages = {};
-  for (var i=1;i<=25;i++) stages[i] = {done:false, remarks:"", link:""};
-  return {
-    stages:stages, woAmount:0, bills:[], orderClosed:false, orderClosedRemarks:"",
-    orderDetails: defaultOrderDetails_()
-  };
-}
-function defaultOrderDetails_() {
-  return {
-    adminApprovalNo:"", adminApprovalDate:"", expenseBookingFY:"",
-    processedVia:"", processedViaOther:"",
-    tenderNo:"",
-    particularsOfWork:"", msetclEstimatedCost:"", rfxNo:"", nameOfOffice:"",
-    noOfBidsReceived:"", l1Rates:"", vendorName:"", vendorCode:"",
-    loiNo:"", loiDate:"",
-    woNo:"", woDate:"", poNo:"", poDate:"", woRemarks:"",
-    stampDutyPaid:"", stampNo:"", stampDate:"", stampRemarks:"",
-    sdBgNo:"", nameOfBank:"", sdBgOtherDetails:"",
-    preparedBy:""
-  };
-}
-function getEstimates(userId, role) {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_ESTIMATES);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true, estimates:[]};
-  var n = Math.max(EST_HDR.length, sheet.getLastColumn());
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,n).getValues();
-  var out = [];
-  for (var i=0;i<data.length;i++) {
-    var r = data[i];
-    if (!r[0]) continue;
-    var est = rowToEstimateSummary_(r);
-    if (role === "admin") out.push(est);
-    else if (role === "viewer") { if (est.viewerVisible) out.push(est); }
-    else { if (est.ownerId === userId) out.push(est); }
-  }
-  return {ok:true, estimates:out};
-}
-function getEstimate(id, userId, role) {
-  var ss = getOrCreateSS();
-  var sheet = ss.getSheetByName(SHEET_ESTIMATES);
-  if (!sheet || sheet.getLastRow() < 2) return {ok:false, error:"Not found"};
-  var n = Math.max(EST_HDR.length, sheet.getLastColumn());
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,n).getValues();
-  for (var i=0;i<data.length;i++) {
-    if (String(data[i][0]) === String(id)) {
-      var est = rowToEstimateSummary_(data[i]);
-      if (role !== "admin" && est.ownerId !== userId && !(role==="viewer" && est.viewerVisible)) {
-        return {ok:false, error:"Access denied"};
-      }
-      var itemSheet = ss.getSheetByName(SHEET_ITEMS);
-      var items = [];
-      if (itemSheet && itemSheet.getLastRow() > 1) {
-        var idata = itemSheet.getRange(2,1,itemSheet.getLastRow()-1,ITEM_HDR.length).getValues();
-        for (var j=0;j<idata.length;j++) {
-          if (String(idata[j][0]) === String(id)) {
-            items.push({
-              item_no:String(idata[j][1]), version:String(idata[j][2]),
-              description:String(idata[j][3]), uom:String(idata[j][4]),
-              rate:parseFloat(idata[j][5])||0, qty:parseFloat(idata[j][6])||0,
-              section:String(idata[j][7]), remarks:String(idata[j][8]||""),
-              isCustom: idata[j][9]===true||idata[j][9]==="true"
-            });
-          }
-        }
-      }
-      return {ok:true, estimate:est, items:items};
-    }
-  }
-  return {ok:false, error:"Not found"};
-}
-function saveEstimate(estimate, items) {
-  if (!estimate) return {ok:false, error:"Missing estimate"};
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_ESTIMATES, EST_HDR);
-  var isNew = !estimate.id;
-  var id = estimate.id || ("EST"+new Date().getTime());
-  var row = isNew ? -1 : findEstimateRow_(sheet, id);
-  var progress = estimate.progress || defaultProgress_();
-  var rowData = [
-    id, estimate.name||"", estimate.number||"", estimate.date||"",
-    estimate.division||"", estimate.ref||"", estimate.work||"",
-    JSON.stringify(estimate.sorVersions||[]), JSON.stringify(estimate.addCharge||{}),
-    JSON.stringify(estimate.settings||{}), estimate.finalTotal||0,
-    new Date().toISOString(), estimate.status||"draft", (items||[]).length,
-    estimate.ownerId||"", estimate.ownerName||"",
-    estimate.audited?true:false, "", "",
-    estimate.remark1||"", estimate.remark2||"", estimate.remark3||"",
-    estimate.remark4||"", estimate.remark5||"",
-    estimate.viewerVisible?true:false, estimate.estimateType||"project",
-    estimate.amcAmount||0, JSON.stringify(estimate.progressImages||[]),
-    estimate.supplySpares?true:false, estimate.amcRemark||"",
-    JSON.stringify(progress),
-    estimate.supplyTotal||0, estimate.projectTotal||0, estimate.omTotal||0,
-    estimate.nonSorSupplyTotal||0, estimate.nonSorOmTotal||0,
-    estimate.trLineMode?true:false, estimate.landCompChargePct||15,
-    estimate.centagesOverridden?true:false,
-    JSON.stringify(estimate.pmoPrEntries||[]),
-    JSON.stringify(estimate.prSettings||null)
-  ];
-  if (row === -1) {
-    sheet.appendRow(rowData);
-  } else {
-    sheet.getRange(row,1,1,rowData.length).setValues([rowData]);
-  }
-  // Replace item rows for this estimate
-  var itemSheet = getOrCreateSheet(ss, SHEET_ITEMS, ITEM_HDR);
-  if (itemSheet.getLastRow() > 1) {
-    var idata = itemSheet.getRange(2,1,itemSheet.getLastRow()-1,1).getValues();
-    var rowsToDelete = [];
-    for (var i=0;i<idata.length;i++) if (String(idata[i][0])===String(id)) rowsToDelete.push(i+2);
-    for (var k=rowsToDelete.length-1;k>=0;k--) itemSheet.deleteRow(rowsToDelete[k]);
-  }
-  if (items && items.length) {
-    var toWrite = items.map(function(it){
-      return [id, it.item_no, it.version||"", it.description, it.uom,
-              it.rate, it.qty, it.section, it.remarks||"", it.isCustom?true:false];
-    });
-    itemSheet.getRange(itemSheet.getLastRow()+1,1,toWrite.length,ITEM_HDR.length).setValues(toWrite);
-  }
-  return {ok:true, id:id};
-}
-function findEstimateRow_(sheet, id) {
-  if (sheet.getLastRow() < 2) return -1;
-  var data = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
-  for (var i=0;i<data.length;i++) if (String(data[i][0])===String(id)) return i+2;
-  return -1;
-}
-function deleteEstimate(id, userId, role) {
-  var ss = getOrCreateSS();
-  var sheet = getOrCreateSheet(ss, SHEET_ESTIMATES, EST_HDR);
-  var row = findEstimateRow_(sheet, id);
-  if (row === -1) return {ok:false, error:"Not found"};
-  var owner = String(sheet.getRange(row,15).getValue());
-  if (role !== "admin" && owner !== userId) return {ok:false, error:"Not permitted"};
-  sheet.deleteRow(row);
-  var itemSheet = ss.getSheetByName(SHEET_ITEMS);
-  if (itemSheet && itemSheet.getLastRow() > 1) {
-    var idata = itemSheet.getRange(2,1,itemSheet.getLastRow()-1,1).getValues();
-    var rowsToDelete = [];
-    for (var i=0;i<idata.length;i++) if (String(idata[i][0])===String(id)) rowsToDelete.push(i+2);
-    for (var k=rowsToDelete.length-1;k>=0;k--) itemSheet.deleteRow(rowsToDelete[k]);
-  }
-  return {ok:true};
-}
-`;
+/* The embedded Apps Script source blob that used to live here (~1,100
+   lines) was removed with the move to Supabase. It was parsed on every
+   page load purely so the Admin Panel could offer it for copy-paste. */
 // ══════════════════════════════════════════════════════════════
 // MSETCL ESTIMATE GENERATOR v5 — CORE / STATE / API
 // ══════════════════════════════════════════════════════════════
 'use strict';
 
-const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsFku6f9Sb5AlJnhTiyzZLZWx6S2LQmx-3qXtjbHPfVC8S-xDHJAEka2D5wcrq_S_H/exec";
-const SCRIPT_URL_KEY = 'msetcl_script_url';
-const TOKEN_KEY = 'msetcl_login_token';
+// ⚠ SET THIS — your Supabase Edge Function URL. Must match the copy in the
+// early-boot script at the top of this file (that one runs before this line
+// is parsed, which is the whole point of it, so it cannot read this const).
+const DEFAULT_SCRIPT_URL = "https://vjakvbaxkspozyplpnan.supabase.co/functions/v1/epm-api";
+// Keys are prefixed per APP, not per organisation. Every tool served from
+// the same GitHub Pages origin (msetcl.github.io/epm, /sto, /hr …) shares one
+// localStorage, so an unprefixed key would have one app logging another out.
+const APP_CODE = 'epm';
+const SCRIPT_URL_KEY = APP_CODE + '_backend_url';
+const TOKEN_KEY = APP_CODE + '_login_token';
 let SURL = localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
 
 // ── Global app state ─────────────────────────────────────────
@@ -1389,6 +313,18 @@ function dfISO(y, mo, d){
 }
 function dfDisplay(iso){ return iso ? fmtDate(iso) : ''; }
 
+// Dates arriving from an uploaded ZEST03 can be in any format the source
+// document used ("20-Jul-2026", "20/07/2026"). Storage must stay ISO
+// (YYYY-MM-DD): a native <input type="date"> silently blanks anything else,
+// and the next save would then write that blank back, erasing the date.
+// So normalise on the way IN, and format only on the way OUT.
+function dfNormalise(v){
+  const raw = String(v||'').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;   // already ISO
+  return dfParse(raw) || raw;                          // else parse, else keep
+}
+
 function dateFieldHtml(id, iso, opts){
   const o = opts||{};
   const dis = o.disabled ? 'disabled' : '';
@@ -1562,14 +498,14 @@ function renderSetupScreen() {
           <h1>Estimation and Proposal Management</h1>
           <p>EHV Substation Engineering · Cost Estimation Portal</p>
         </div>
-        <p class="text-sm" style="margin-bottom:14px">Connect this app to your Google Apps Script backend to get started. You only need to do this once on this device.</p>
+        <p class="text-sm" style="margin-bottom:14px">Connect this app to your Supabase backend to get started. You only need to do this once on this device.</p>
         <div class="field">
-          <label>Apps Script Web App URL</label>
-          <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec">
+          <label>Backend URL</label>
+          <input type="text" id="setup-url" placeholder="https://vjakvbaxkspozyplpnan.supabase.co/functions/v1/epm-api">
         </div>
         <div id="setup-status" class="text-sm mt-1" style="margin-bottom:10px"></div>
         <button class="btn btn-gold btn-block" onclick="testAndSaveSetupUrl()">Connect</button>
-        <p class="hint mt-2">Don't have a backend deployed yet? Open the Admin Panel after logging in to copy the ready-made Apps Script code and a step-by-step deployment guide. <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="showSetupScriptHelp()">View it now</button></p>
+        <p class="hint mt-2">Don't have a backend deployed yet? <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="showSetupScriptHelp()">Deployment guide</button></p>
       </div>
     </div>`;
 }
@@ -1578,8 +514,11 @@ async function testAndSaveSetupUrl() {
   const url = document.getElementById('setup-url').value.trim();
   const statusEl = document.getElementById('setup-status');
   if (!url) { statusEl.innerHTML = '<span class="error-text">Enter a URL first.</span>'; return; }
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
-    statusEl.innerHTML = '<span class="error-text">That doesn\'t look like an Apps Script Web App URL — it should end in /exec.</span>';
+  // Apps Script URLs stay valid so you can point back at the old backend
+  // during a cutover without editing code.
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1\/.+$/.test(url) &&
+      !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
+    statusEl.innerHTML = '<span class="error-text">That doesn\'t look like a backend URL — expected https://&lt;project&gt;.supabase.co/functions/v1/epm-api</span>';
     return;
   }
   statusEl.innerHTML = '<span class="spinner dark"></span> Testing connection…';
@@ -1587,7 +526,7 @@ async function testAndSaveSetupUrl() {
     const r = await fetch(`${url}?action=ping`, {redirect:'follow'});
     const txt = await r.text();
     if (txt.trim().startsWith('<')) {
-      statusEl.innerHTML = '<span class="error-text">Got an HTML response instead of data — check the deployment is set to "Execute as: Me" and "Access: Anyone".</span>';
+      statusEl.innerHTML = '<span class="error-text">Got an HTML response instead of data — check the function is deployed and the URL ends in /functions/v1/epm-api.</span>';
       return;
     }
     const data = JSON.parse(txt);
@@ -1607,16 +546,14 @@ async function testAndSaveSetupUrl() {
 function showSetupScriptHelp() {
   openModal(`
     <div class="modal-head"><h3>Deploy Your Backend</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <p class="text-sm">The backend lives in a separate repository. Full instructions are in its <code>README.md</code>; the short version:</p>
     <ol class="text-sm" style="padding-left:18px; line-height:1.8">
-      <li>Go to <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a> and create a new project.</li>
-      <li>Delete any starter code, then paste in the full backend code below.</li>
-      <li><b>Deploy → New deployment → Type: Web app.</b></li>
-      <li>Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>.</li>
-      <li>Click Deploy, authorize the permissions it asks for, then copy the Web app URL it gives you (ends in <code>/exec</code>).</li>
-      <li>Paste that URL into the field on this screen and click Connect.</li>
+      <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a> — region <b>South Asia (Mumbai)</b>.</li>
+      <li>SQL Editor → paste <code>schema.sql</code> → Run.</li>
+      <li>Storage → New bucket named <code>estimate-images</code>, <b>public</b>.</li>
+      <li>Deploy the function: <code>supabase functions deploy msetcl --no-verify-jwt</code></li>
+      <li>Paste <code>https://&lt;project-ref&gt;.supabase.co/functions/v1/epm-api</code> into the field on this screen and click Connect.</li>
     </ol>
-    <textarea readonly style="height:200px; font-family:var(--font-mono); font-size:11px; margin-top:10px" onclick="this.select()">${escapeHtml(APPS_SCRIPT_CODE)}</textarea>
-    <button class="btn btn-ghost btn-sm mt-1" onclick="navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(()=>toast('Copied to clipboard.','ok'))">📋 Copy Code</button>
   `, true);
 }
 
@@ -2321,7 +1258,7 @@ function renderDashboardList(list) {
     cats.forEach(cat => {
       const catItems = sorted.filter(e => (e.estimateType||'project')===cat.type);
       if (!catItems.length) return;
-      html += `<div class="dash-cat-section"><div class="dash-cat-head">${cat.label} <span class="badge badge-neutral">${catItems.length}</span></div>`;
+      html += `<div class="dash-cat-section"><div class="embroidery" aria-hidden="true"></div><div class="dash-cat-head">${cat.label} <span class="badge badge-neutral">${catItems.length}</span></div>`;
       // FY groups within THIS category, newest FY first
       const fyMap = {};
       catItems.filter(e=>estimateFY(e)).forEach(e => { const fy=estimateFY(e); (fyMap[fy]=fyMap[fy]||[]).push(e); });
@@ -2346,7 +1283,7 @@ function renderDashboardList(list) {
       if (!items.length) return;
       DASH.groups['cat|'+cat.type] = items.map(e=>e.id);
       let sno = 0;
-      html += `<div class="dash-cat-section"><div class="dash-cat-head">${cat.label} <span class="badge badge-neutral">${items.length}</span></div><div class="flex-col gap-3">${items.map(e=>{ sno++; return estCardHtml(e, sno); }).join('')}</div></div>`;
+      html += `<div class="dash-cat-section"><div class="embroidery" aria-hidden="true"></div><div class="dash-cat-head">${cat.label} <span class="badge badge-neutral">${items.length}</span></div><div class="est-list">${items.map(e=>{ sno++; return estCardHtml(e, sno); }).join('')}</div></div>`;
     });
   }
   zone.innerHTML = html;
@@ -2365,20 +1302,26 @@ function dashFyGroupHtml(gid, label, ests, allChecked, open) {
         <span class="chev">▸</span>
       </div>
       <div class="collapse-body"><div class="collapse-body-inner">
-        <div class="flex-col gap-3">${ests.map(e=>{ sno++; return estCardHtml(e, sno); }).join('')}</div>
+        <div class="est-list">${ests.map(e=>{ sno++; return estCardHtml(e, sno); }).join('')}</div>
       </div></div>
     </div>`;
 }
 function estCardHtml(est, idx) {
   return `
-    <div class="est-card" onclick="navigateTo('estimate-edit',{id:'${est.id}'})">
+    <div class="est-card" data-type="${escapeHtml(est.estimateType||'project')}" tabindex="0"
+         onclick="navigateTo('estimate-edit',{id:'${est.id}'})"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('estimate-edit',{id:'${est.id}'});}">
       ${DASH.selecting ? `<div class="est-check" onclick="event.stopPropagation()"><input type="checkbox" class="sel-check" ${DASH.sel && DASH.sel.has(est.id)?'checked':''} onclick="toggleDashEstimate('${est.id}', this.checked)" title="Include in export"></div>` : ''}
       <div class="est-sno">${idx}</div>
       <div class="est-icon">${estimateTypeIcon(est.estimateType)}</div>
       <div class="est-main">
         <div class="est-name">${escapeHtml(est.name||'Untitled Estimate')}</div>
         <div class="est-meta">
-          ${escapeHtml(est.number||'No number')} · ${escapeHtml(est.division||'—')} ·
+          <span class="est-num">${escapeHtml(est.number||'No number')}</span>
+          <span class="sep">/</span>
+          <span>${escapeHtml(est.division||'—')}</span>
+          <span class="sep">/</span>
+          <span>${escapeHtml(estimateTypeLabel(est.estimateType))}</span>
           <span class="badge ${est.status==='finalised'?'badge-ok':'badge-neutral'}">${est.status==='finalised'?'Finalised':'Draft'}</span>
           ${est.viewerVisible ? '<span class="badge badge-gold">Viewer-visible</span>' : ''}
         </div>
@@ -2809,7 +1752,13 @@ function applyRowStyles(ws, styleMap, colCount) {
     for (let c=0; c<colCount; c++) {
       const addr = XLSX.utils.encode_cell({r:rowIdx, c});
       if (!ws[addr]) ws[addr] = {t:'s', v:''};
-      ws[addr].s = style;
+      // Each cell gets its OWN style, with alignment and border cloned too.
+      // Sharing one object meant a later per-cell tweak leaked across the
+      // whole row and permanently altered the XLSX_STYLES preset.
+      ws[addr].s = Object.assign({}, style, {
+        alignment: Object.assign({}, style.alignment),
+        border:    style.border ? Object.assign({}, style.border) : undefined,
+      });
     }
   });
 }
@@ -2824,17 +1773,26 @@ function setRowHeight(ws, rowIdx, pts) {
 // the following 3 header lines (division/scope/estimation no.) centered
 // and bold but smaller. colCount must match the sheet's actual width so
 // the merge spans correctly regardless of how many columns the sheet has. ──
+// Row 0 = company name (37pt). Row 1 = sheet title (28pt). Both centred on a
+// light grey band. Rows 2-4 are the estimate detail lines, unchanged.
+const BANNER_ROWS = 5;
 function applyMsetclHeaderBanner(ws, colCount) {
   ws['!merges'] = ws['!merges'] || [];
-  for (let r = 0; r < 4; r++) {
+  for (let r = 0; r < BANNER_ROWS; r++) {
     _mergeRowAcross(ws, r, colCount);
     const addr = XLSX.utils.encode_cell({r, c:0});
     if (!ws[addr]) ws[addr] = {t:'s', v:''};
+    const isBanner = (r === 0 || r === 1);
     ws[addr].s = {
-      font: { name:EXPORT_FONT, bold:true, italic: (r>=1 && r<=3), sz: 14, color:{rgb:'000000'} },
-      fill: r===0 ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
-      alignment: { horizontal: r===0?'center':'left', vertical:'center', wrapText:true },
-      border: r===3 ? {bottom:{style:'thin',color:{rgb:'000000'}}} : undefined
+      font: {
+        name: EXPORT_FONT, bold: true,
+        italic: (r >= 2 && r <= 4),
+        sz: r === 0 ? 30 : (r === 1 ? 28 : 14),
+        color: {rgb:'000000'},
+      },
+      fill: isBanner ? {patternType:'solid', fgColor:{rgb:'D9DDE3'}} : undefined,
+      alignment: { horizontal: isBanner ? 'center' : 'left', vertical:'center', wrapText:true },
+      border: r === BANNER_ROWS-1 ? {bottom:{style:'thin',color:{rgb:'000000'}}} : undefined
     };
     // heights are computed by autoRowHeights (content-based, print-ready)
   }
@@ -2859,7 +1817,9 @@ function styleMsetclTitleRow(ws, colCount) {
     font: { name:EXPORT_FONT, bold:true, sz:14, color:{rgb:'000000'} },
     fill: { patternType:'solid', fgColor:{rgb:'D9DDE3'} },
     alignment: { horizontal:'center', vertical:'center', wrapText:false },
-    border: { bottom:{style:'medium', color:{rgb:'9AA3AF'}} }
+    // Matched to the outer frame and the header underline — a 'medium' rule
+    // here was the one remaining heavier line on summary sheets.
+    border: { bottom:{style:'thin', color:{rgb:'000000'}} }
   };
   setRowHeight(ws, 0, 24);
 }
@@ -2937,12 +1897,23 @@ const LUXE_BORDER_ALL = { top:LUXE_GRID, bottom:LUXE_GRID, left:LUXE_GRID, right
 // Exact column widths from the approved edited sheet (print-ready).
 const COLW_SECTION = [13.86, 22.43, 44.86, 13.86, 9, 12, 18.29, 13.86, 16.14, 21.86, 14, 13.86];
 const COLW_ABSTRACT = [15.86, 10, 15.86, 1.86, 16, 9, 2.57, 17.43, 14.86, 1.86, 20.71, 53.29];
-// Draw a medium outer border around the whole used range of a sheet.
+// Draw the outer border around the whole used range of a sheet.
+//
+// This was 'medium', and that is what made the vertical lines look heavy on
+// the banner rows above the header and on the total / amount-in-words rows
+// at the bottom. Those rows are MERGED across the full sheet width, so their
+// interior hair verticals disappear — leaving the medium sheet edge as the
+// only vertical line in the row, next to hair horizontals. On line-item rows
+// the same edge sits among dozens of hair verticals and reads as a normal
+// frame, which is why the problem only showed on the non-item rows.
+//
+// 'thin' matches _GOLD_EDGE, the heaviest horizontal line used anywhere, so
+// no vertical is ever bolder than the boldest horizontal.
 function drawOuterBorder(ws){
   if (!ws || !ws['!ref']) return;
   const X = window.XLSX;
   const range = X.utils.decode_range(ws['!ref']);
-  const EDGE = { style:'medium', color:{ rgb:'000000' } };
+  const EDGE = { style:'thin', color:{ rgb:'000000' } };
   for (let r=range.s.r; r<=range.e.r; r++){
     for (let c=range.s.c; c<=range.e.c; c++){
       const onTop=r===range.s.r, onBot=r===range.e.r, onLeft=c===range.s.c, onRight=c===range.e.c;
@@ -3686,6 +2657,167 @@ function splitKey(key) {
 // ══════════════════════════════════════════════════════════════
 // ADD NON-SOR ITEM MODAL
 // ══════════════════════════════════════════════════════════════
+// One button, two routes. Adding a single item is far more common, so it is
+// listed first and described in the same words as the form it opens.
+function openNonSORAddChooser(context){
+  openModal(`
+    <div class="modal-head"><h3>Add Non-SOR Items</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <p class="text-sm text-muted" style="margin:0 0 14px">How many are you adding?</p>
+    <div class="flex-col gap-2">
+      <button class="btn btn-gold w-full" style="justify-content:flex-start; text-align:left; padding:14px 16px; height:auto"
+              onclick="openAddNonSORModal('${context}')">
+        <span style="font-size:18px; margin-right:12px">✏️</span>
+        <span><span class="fw-700">One item</span><br>
+        <span class="text-sm" style="opacity:.85">Type in the number, description, rate and section.</span></span>
+      </button>
+      <button class="btn btn-ghost w-full" style="justify-content:flex-start; text-align:left; padding:14px 16px; height:auto"
+              onclick="openNonSORBulkModal('${context}')">
+        <span style="font-size:18px; margin-right:12px">📚</span>
+        <span><span class="fw-700">Many items from a spreadsheet</span><br>
+        <span class="text-sm text-muted">Download the template, fill it in, upload it back.</span></span>
+      </button>
+    </div>
+  `);
+}
+
+function openNonSORBulkModal(context){
+  openModal(`
+    <div class="modal-head"><h3>Bulk Add Non-SOR Items</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <ol class="text-sm" style="padding-left:18px; line-height:1.9; margin:0 0 14px">
+      <li>Download the template.</li>
+      <li>Fill one row per item. Keep the header row as it is.</li>
+      <li>Upload it here.</li>
+    </ol>
+    <div class="flex gap-2" style="flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="nonSorTemplateDownload()">⬇ Download template</button>
+      <button class="btn btn-gold" onclick="document.getElementById('ns-bulk-file').click()">📤 Upload filled file</button>
+      <input type="file" id="ns-bulk-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="nonSorBulkUpload(event,'${context}')">
+    </div>
+    <p class="hint mt-2">Item numbers already in the catalog are left exactly as they are — an upload can only add new items, never overwrite a stored rate or description.</p>
+    <div id="ns-bulk-status" class="text-sm mt-2"></div>
+  `);
+}
+
+// Remarks lookup used by the Excel writers. Exposed so any export path can
+// guarantee the catalog is present before it builds a sheet.
+async function ensureRemarksSource(){ try { await ensureNonSorLoaded(); } catch(e){} }
+
+async function nonSorTemplateDownload(){
+  try {
+    const X = await ensureSheetJS();
+    const rows = [
+      ['Non-SOR Items — Upload Template'],
+      ['One row per item. Section must be either supply (material) or om (service).'],
+      ['Item numbers that already exist in the catalog will be skipped, not overwritten.'],
+      [],
+      ['Item No','Description','UOM','Rate (Rs.)','Section','Remarks'],
+      ['NS-CABLE-01','Example non-SOR material','Mtr',450,'supply','Rate as per vendor quotation'],
+      ['NS-SVC-01','Example non-SOR service','Job',18000,'om','Lump sum'],
+    ];
+    const ws = X.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:20},{wch:44},{wch:10},{wch:14},{wch:12},{wch:34}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},{s:{r:2,c:0},e:{r:2,c:5}}];
+    const wb=X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Non-SOR');
+    X.writeFile(wb, 'NonSOR_Upload_Template.xlsx');
+    toast('Template downloaded — fill it in and upload it back.','ok');
+  } catch(err){ toast('Template failed: '+(err.message||'error'),'err',6000); }
+}
+
+async function nonSorBulkUpload(evt, context){
+  const file = evt.target.files[0]; evt.target.value='';
+  if (!file) return;
+  const status = document.getElementById('ns-bulk-status');
+  const say = (html)=>{ if(status) status.innerHTML = html; };
+  say('<span class="spinner dark"></span> Reading the file…');
+  try {
+    const X = await ensureSheetJS();
+    const wb = X.read(await file.arrayBuffer(), {type:'array'});
+    const grid = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, blankrows:false, defval:''});
+
+    // Find the header wherever it sits — the template has title rows above it,
+    // and people add their own notes, so a fixed row index would be brittle.
+    const hIdx = grid.findIndex(r=> r.some(c=>/^(item\s*no|material\s*\/?\s*service\s*no)/i.test(String(c).trim())));
+    if (hIdx<0) throw new Error('Could not find the header row. Keep the row starting with "Item No" from the template.');
+    const H = grid[hIdx].map(c=>String(c).trim());
+    const ci = {
+      no:   H.findIndex(c=>/^(item\s*no|material\s*\/?\s*service\s*no)/i.test(c)),
+      desc: H.findIndex(c=>/description/i.test(c)),
+      uom:  H.findIndex(c=>/uom|unit/i.test(c)),
+      rate: H.findIndex(c=>/rate|price|amount/i.test(c)),
+      sec:  H.findIndex(c=>/section|type/i.test(c)),
+      rem:  H.findIndex(c=>/remark|note/i.test(c)),
+    };
+
+    const cell = (row,i)=> i>=0 ? String(row[i]==null?'':row[i]).trim() : '';
+    const items = []; const missingDesc = []; const seen = new Set(); const dupInFile = [];
+    for (let r=hIdx+1; r<grid.length; r++){
+      const row = grid[r];
+      const item_no = cell(row, ci.no);
+      if (!item_no) continue;
+      const description = cell(row, ci.desc);
+      if (!description) { missingDesc.push(item_no); continue; }
+      if (seen.has(item_no)) { dupInFile.push(item_no); continue; }
+      seen.add(item_no);
+      let section = cell(row, ci.sec).toLowerCase();
+      section = /o&m|^om$|service/.test(section) ? 'om' : 'supply';
+      items.push({ item_no, description, uom: cell(row, ci.uom),
+        rate: parseFloat(String(cell(row, ci.rate)).replace(/[₹,\s]/g,''))||0,
+        section, remarks: cell(row, ci.rem), addedBy: ST.user.id });
+    }
+    if (!items.length) throw new Error('No rows with an item number were found.');
+
+    // Items go in one at a time through the SAME endpoint the single-item form
+    // uses, so catalog rules are enforced in exactly one place: an item number
+    // already in the catalog is rejected there, never overwritten. Six at a
+    // time keeps a 100-row upload to a few seconds without flooding the
+    // backend.
+    const added = []; const already = []; const failed = [];
+    let done = 0;
+    const worker = async (queue)=>{
+      for(;;){
+        const it = queue.shift(); if (!it) return;
+        try {
+          const res = await apiPost({action:'addNonSOR', item:it});
+          if (res.ok) added.push(it);
+          else if (/already exists/i.test(res.error||'')) already.push(it.item_no);
+          else failed.push(it.item_no+' ('+(res.error||'failed')+')');
+        } catch(e){ failed.push(it.item_no+' ('+(e.message||'network error')+')'); }
+        done++;
+        say('<span class="spinner dark"></span> Adding… '+done+' of '+items.length);
+      }
+    };
+    const queue = items.slice();
+    await Promise.all([1,2,3,4,5,6].map(()=>worker(queue)));
+
+    // Update the cache in place rather than refetching the whole catalog.
+    ST.nonSorCache = ST.nonSorCache || [];
+    added.forEach(it=> ST.nonSorCache.push({
+      item_no:it.item_no, description:it.description, uom:it.uom, rate:it.rate,
+      section:it.section, remarks:it.remarks, addedBy:ST.user.id,
+      addedAt:new Date().toISOString(), version:'NONSOR'}));
+
+    const bits = [`<b>${added.length}</b> item${added.length===1?'':'s'} added`];
+    if (already.length)    bits.push(`${already.length} already in the catalog`);
+    if (dupInFile.length)  bits.push(`${dupInFile.length} repeated in the file`);
+    if (missingDesc.length)bits.push(`${missingDesc.length} with no description`);
+    if (failed.length)     bits.push(`<span class="error-text">${failed.length} failed</span>`);
+    let html = `<div class="ok-text">${bits.join(' · ')}</div>`;
+    const skipped = [].concat(already, dupInFile, missingDesc).slice(0,25);
+    if (skipped.length) html += `<div class="text-sm text-muted mt-1">Skipped: ${skipped.map(escapeHtml).join(', ')}${
+      (already.length+dupInFile.length+missingDesc.length)>25?' …':''}</div>`;
+    if (failed.length) html += `<div class="text-sm error-text mt-1">${failed.slice(0,10).map(escapeHtml).join('<br>')}</div>`;
+    say(html);
+
+    toast(added.length ? `${added.length} Non-SOR item${added.length===1?'':'s'} added.`
+                       : 'Nothing new to add — every item was already in the catalog.',
+          added.length ? 'ok' : 'warn', 5000);
+    if (document.getElementById('rates-nonsor-body')) renderRatesNonSORTable();
+    if (document.getElementById('ai-results-body')) renderAIResults();
+  } catch(err){
+    say(`<span class="error-text">${escapeHtml(err.message||'Upload failed')}</span>`);
+  }
+}
+
 function openAddNonSORModal(context, editItem=null) {
   const isEdit = !!editItem;
   openModal(`
@@ -4573,14 +3705,29 @@ function pmoPrAllFilled(e) {
   return (e.pmoPrEntries||[]).filter(p=>p.label && p.label.trim() && p.number && p.number.trim());
 }
 
+// The estimate's official identity. A ZEST03 upload carries SAP's own
+// Estimation Number and Date; those outrank anything typed into the portal.
+// Number and date are resolved TOGETHER — taking the number from ZEST03 and
+// the date from the portal would put two different documents on one header.
+function estimateIdentity(e) {
+  const z = (e && e.settings && e.settings.zest03) || {};
+  const zNo = String(z.estNo||'').trim();
+  if (zNo) return { number: zNo, date: dfNormalise(z.estDate||'') || (e.date||''), source: 'zest03' };
+  return { number: String(e.number||'').trim(), date: e.date||'', source: 'portal' };
+}
+
 // ── Header block — identical across Abstract + every section sheet ──
-function estimateHeaderRows(e, sectionPrNo) {
+function estimateHeaderRows(e, sectionPrNo, sheetLabel) {
   const division = e.division || '';
+  const ident = estimateIdentity(e);
   const rows = [
     [MSETCL_HEADER_LINE1],
+    // Sheet title, e.g. "Estimate : Supply Part". Row 1 on every tab so a
+    // printed page identifies itself without needing the tab name.
+    [sheetLabel ? `Estimate : ${sheetLabel}` : ''],
     [division ? (/name of location/i.test(division) ? division : ('Name of Location : ' + division)) : ''],
     [`SCOPE OF WORK:- ${e.work || e.name || ''}`],
-    [`Estimation Number: ${e.number||'—'} , SOR Number: ${(e.sorVersions||[]).join(', ')||'—'} , Estimation Date: ${fmtDate(e.date)}` + (sectionPrNo ? ` , PR No.: ${sectionPrNo}` : '')],
+    [`Estimation Number: ${ident.number||'—'} , SOR Number: ${(e.sorVersions||[]).join(', ')||'—'} , Estimation Date: ${fmtDate(ident.date)||'—'}` + (sectionPrNo ? ` , PR No.: ${sectionPrNo}` : '')],
   ];
   return rows;
 }
@@ -4698,7 +3845,9 @@ function sectionItemTableRows(key, itemsOverride, opts) {
     sum.fi+=c.fi; sum.exFi+=c.base+c.ac+c.lc+c.fi;
     sum.gst+=c.gst; sum.total+=c.total;
   });
-  if (cfg.items.length) {
+  // noTotals: build the item table and stop. Kept as a general capability for
+  // any caller that wants a listing without a total block.
+  if (cfg.items.length && !(opts && opts.noTotals)) {
     // TOTAL row — placed precisely under each column whatever columns exist
     const D = hasFull ? 1 : 0;          // rightward shift caused by Full Description
     const tr = new Array(headers.length).fill('');
@@ -4830,15 +3979,41 @@ function abstractSheetRows(includeBreakdown=false) {
   return rows.concat(abstractPmoPrRows(e));
 }
 
+// ── The single source of truth for which sheets an estimate produces and
+// what goes on each one. Excel and Print both read this, so the printed
+// document is the workbook minus the ZEST03 tab — never a second, drifting
+// implementation of the same thing. ──
+function estimateSheetDefs(e) {
+  const _pr = pmoPrResolve(e);
+  const _isNonSor = (it)=> !!(it.isCustom || it.version === 'NONSOR');
+  const _gather = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items.filter(_isNonSor)), []);
+  const _merge  = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items), []);
+  return [
+    {key:'supply',  name:'Supply  Material', pr:_pr.supply,  items:_merge(['supply','nonsor_supply'])},
+    {key:'project', name:'ETC Part',         pr:_pr.project},
+    {key:'om',      name:'Services Part',    pr:_pr.om,      items:_merge(['om','nonsor_om'])},
+    {key:'supply',  name:'Non SOR Materials', pr:_pr.supply, items:_gather(['supply','nonsor_supply']),
+     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
+    {key:'om',      name:'Non SOR Services',  pr:_pr.om,     items:_gather(['om','project','nonsor_om']),
+     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
+  ];
+}
+
 async function exportEstimateExcel() {
   const e = ST.currentEstimate;
   e.pmoPrEntries = e.pmoPrEntries || [];
   toast('Building Excel…', 'ok', 1800);
+  // The Non-SOR sheets take their Remarks straight from the Non-SOR catalog
+  // (that is where the PO references live). Under lite boot the catalog is
+  // only fetched when a page needs it, so exporting from an estimate without
+  // ever opening Rates left ST.nonSorCache empty and every Remark blank.
+  // Loading it here is a no-op once it is already in memory.
+  await ensureNonSorLoaded();
   const XLSXmod = await ensureSheetJS();
   const wb = XLSXmod.utils.book_new();
 
   // Abstract sheet: header block + Sr.1-9 table
-  const abstractHeader = estimateHeaderRows(e, '');
+  const abstractHeader = estimateHeaderRows(e, '', 'Abstract');
   const abstractTable = abstractSheetRows(false);
   // Abstract laid out across the full 12 columns (Sr in A, PARTICULARS B:K,
   // AMOUNT in L) so it aligns with the section sheets, plus a signatory footer.
@@ -4894,10 +4069,30 @@ async function exportEstimateExcel() {
     if(r===aSigRows[0]) b.top=_aB; if(r===aSig.officeRowIdx) b.bottom=_aB;
     if(c===0) b.left=_aB; if(c===A_COLS-1) b.right=_aB;
     abs[ad].s.border=b; } });
-  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}}); } }); });
+  // idx 0 = designation, idx 1 = office / work location. The office row is
+  // top-aligned so it sits directly under the designation instead of floating
+  // in the middle of a tall signing row. Must match the section sheets.
+  [aSig.titleRowIdx, aSig.officeRowIdx].forEach((r,idx)=>{ [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(abs[ad]){ abs[ad].s=Object.assign({},abs[ad].s,{font:{name:EXPORT_FONT,bold:idx===0,sz:16,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical: idx===1 ? 'top' : 'center',wrapText:true}}); } }); });
   applyRowStyles(abs, absStyleMap, A_COLS);
+  // Same hairline pass on the Abstract: fill only the cells that have no
+  // border yet, leaving every deliberately-styled row untouched.
+  (function gridAbstract(){
+    const HAIR = {style:'hair', color:{rgb:'000000'}};
+    const firstSigRow = aSig.titleRowIdx - 2;
+    const lastRow = XLSXmod.utils.decode_range(abs['!ref']).e.r;
+    for (let r = BANNER_ROWS; r <= lastRow; r++) {
+      if (r >= firstSigRow) continue;      // signing area stays clean
+      for (let c = 0; c < A_COLS; c++) {
+        const ad = XLSXmod.utils.encode_cell({r, c});
+        if (!abs[ad]) abs[ad] = {t:'s', v:''};
+        abs[ad].s = abs[ad].s || {};
+        if (!abs[ad].s.border) abs[ad].s.border = {top:HAIR, bottom:HAIR, left:HAIR, right:HAIR};
+      }
+    }
+  })();
+
   applyMsetclHeaderBanner(abs, A_COLS);
-  const absMins = {0:26.1, 1:26.2, 2:40.5, 3:26.2, 4:28.5};
+  const absMins = {0:42, 1:39, 2:26.2, 3:40.5, 4:26.2, 5:28.5};
   absMins[colHdrIdx] = 28.5;
   absMins[aSig.titleRowIdx] = 42; absMins[aSig.officeRowIdx] = 42;
   absMins[aSig.titleRowIdx-2] = 30; absMins[aSig.titleRowIdx-1] = 30;   // two rows above signatories, 1.5x
@@ -4911,43 +4106,14 @@ async function exportEstimateExcel() {
   // top, so the label "Project Services PR" (it contains "service") would be
   // picked for the O&M sheet and that sheet would print the ETC PR number.
   const _pr = pmoPrResolve(e);
-  // Non-SOR entries live inline in supply/project/om on a ZEST03 estimate and
-  // in nonsor_* on a regular one — collect from both.
-  const _isNonSor = (it)=> !!(it.isCustom || it.version === 'NONSOR');
-  const _gather = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items.filter(_isNonSor)), []);
-  const nsMaterials = _gather(['supply','nonsor_supply']);
-  const nsServices  = _gather(['om','project','nonsor_om']);
-
-  // The Non-SOR sheets are EXACT copies of the Supply / O&M sheets — same
-  // builder, same styling, same totals block — differing only by: their own
-  // item subset, one extra Remarks column, three signatories instead of four
-  // (they are audited separately before the main sheets are signed), and no
-  // yellow highlight (the highlight exists to separate Non-SOR from SOR inside
-  // the Supply / O&M sheets; on a sheet that is entirely Non-SOR it is noise).
-  // Supply and O&M each carry their SOR items AND their Non-SOR items together,
-  // Non-SOR last and yellow-highlighted. On a regular estimate those Non-SOR
-  // entries sit in the separate nonsor_supply / nonsor_om sections, so they
-  // have to be merged in here or they never reach the sheet at all. On a
-  // ZEST03 estimate they are already inline and the merge is a no-op.
-  const _merge = (keys)=> keys.reduce((acc,k)=> acc.concat(sectionConfig(k).items), []);
-  const supplyAll = _merge(['supply','nonsor_supply']);
-  const omAll     = _merge(['om','nonsor_om']);
-  const sectionDefs = [
-    {key:'supply',  name:'Supply  Material', pr:_pr.supply,  items:supplyAll},
-    {key:'project', name:'ETC Part',         pr:_pr.project},
-    {key:'om',      name:'Services Part',    pr:_pr.om,      items:omAll},
-    {key:'supply',  name:'Non SOR Materials', pr:_pr.supply, items:nsMaterials,
-     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
-    {key:'om',      name:'Non SOR Services',  pr:_pr.om,     items:nsServices,
-     remarks:true, noHighlight:true, skipFirstSig:true, noSpares:true},
-  ];
+  const sectionDefs = estimateSheetDefs(e);
   sectionDefs.forEach(def => {
     const key = def.key, name = def.name, prMatch = def.pr;
     const itemsOverride = def.items || null;
     const srcItems = itemsOverride || sectionConfig(key).items;
     if (!srcItems.length) return;
     const prNo = (prMatch && prMatch.number) ? prMatch.number : '';
-    const header = estimateHeaderRows(e, prNo);
+    const header = estimateHeaderRows(e, prNo, name);
     const secOpts = {noSpares: !!def.noSpares};
     let itemRows = sectionItemTableRows(key, itemsOverride, secOpts);
     if (def.remarks) itemRows = appendRemarksColumn(itemRows, srcItems);
@@ -5052,7 +4218,7 @@ async function exportEstimateExcel() {
     for (let i=calcStart;i<=calcEnd;i++) fmtAmt(i, valueCol);
 
     // words row style (bold italic sz16, left, fill)
-    { const ad=XLSXmod.utils.encode_cell({r:wordsIdx,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.words); }
+    { const ad=XLSXmod.utils.encode_cell({r:wordsIdx,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.words, {alignment:Object.assign({}, XLSX_STYLES.words.alignment)}); }
 
     // ---- merges ----
     ws['!merges'] = ws['!merges'] || [];
@@ -5067,6 +4233,15 @@ async function exportEstimateExcel() {
       M(i, 0, valueCol-1); M(i, valueCol, statusCol);
       const ad=XLSXmod.utils.encode_cell({r:i,c:0}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.alignment=Object.assign({vertical:'center',wrapText:true},ws[ad].s.alignment,{horizontal:'right'}); }
     }
+    // Section / sub-total amounts are centred in their merged cell. This runs
+    // AFTER the label alignment tweaks above, so it is the last word on these
+    // cells regardless of what touched them earlier.
+    const centreAmt = (r)=>{ const ad=XLSXmod.utils.encode_cell({r,c:valueCol});
+      if(ws[ad]){ ws[ad].s=ws[ad].s||{};
+        ws[ad].s.alignment=Object.assign({}, ws[ad].s.alignment, {horizontal:'center', vertical:'center'}); } };
+    centreAmt(totalIdx);
+    for (let i=calcStart;i<=calcEnd;i++) centreAmt(i);
+
     M(calcEnd+1, 0, N-1);                             // blank before amount-in-words
     M(wordsIdx, 0, N-1);                              // amount in words A-L
     M(sigStart, 0, N-1); M(sigStart+1, 0, N-1);       // two blank rows above signatories
@@ -5083,10 +4258,41 @@ async function exportEstimateExcel() {
       if(c===0) b.left=_B; if(c===N-1) b.right=_B;
       ws[ad].s.border=b; } });
     [_sig.titleRowIdx, _sig.officeRowIdx].forEach((r, idx)=>{
+      // idx 0 = designation row, idx 1 = office/work-location row. The office
+      // row is top-aligned so it hugs the designation above it rather than
+      // sitting centred in a tall row.
+      const isOffice = idx === 1;
       [0,3,7,10].forEach(c=>{ const ad=XLSXmod.utils.encode_cell({r,c}); if(ws[ad]) ws[ad].s=Object.assign({}, ws[ad].s, {
         font:{name:EXPORT_FONT, bold: idx===0, sz:16, color:{rgb:'000000'}},
-        alignment:{horizontal:'center', vertical:'center', wrapText:true} }); });
+        alignment:{horizontal:'center', vertical: isOffice ? 'top' : 'center', wrapText:true} }); });
     });
+
+    // TRIAL: hairline grid across the item table.
+    //
+    // Data rows carried no explicit border at all, so they showed only Excel's
+    // faint on-screen gridlines — which do not print. That is why the grid
+    // looked complete in some regions and broken in others: the styled rows
+    // (header / total / calc) had real borders and the item rows had none.
+    //
+    // Any cell WITHOUT a border gets a hair box; cells that already carry one
+    // are left exactly as they are, so nothing styled above is overwritten.
+    // Signature rows are excluded: they are deliberately a clean signing area.
+    (function gridItemRows(){
+      const HAIR = {style:'hair', color:{rgb:'000000'}};
+      const box  = ()=> ({top:HAIR, bottom:HAIR, left:HAIR, right:HAIR});
+      const firstSigRow = _sig.titleRowIdx - 2;
+      const lastRow = XLSXmod.utils.decode_range(ws['!ref']).e.r;
+      for (let r = 0; r <= lastRow; r++) {
+        if (r < BANNER_ROWS) continue;       // MSETCL banner block
+        if (r >= firstSigRow) continue;      // signing area
+        for (let c = 0; c < N; c++) {
+          const ad = XLSXmod.utils.encode_cell({r, c});
+          if (!ws[ad]) ws[ad] = {t:'s', v:''};
+          ws[ad].s = ws[ad].s || {};
+          if (!ws[ad].s.border) ws[ad].s.border = box();
+        }
+      }
+    })();
 
     applyMsetclHeaderBanner(ws, N);
 
@@ -5115,7 +4321,8 @@ async function exportEstimateExcel() {
 
     // ---- freeze header rows + auto row heights ----
     ws['!freeze'] = { xSplit:0, ySplit:colHdrIdx+1, topLeftCell:XLSXmod.utils.encode_cell({r:colHdrIdx+1,c:0}), activePane:'bottomLeft', state:'frozen' };
-    const secMins = {0:34.5,1:26.2,2:26.2,3:26.2}; secMins[titleIdx]=36.8; secMins[colHdrIdx]=67.5;
+    // Row 0 doubled for the 37pt company name; row 1 sized for the 28pt title.
+    const secMins = {0:42, 1:39, 2:26.2, 3:26.2, 4:26.2}; secMins[titleIdx]=36.8; secMins[colHdrIdx]=67.5;
     secMins[wordsIdx]=38.2; secMins[_sig.titleRowIdx]=48; secMins[_sig.officeRowIdx]=48;
     secMins[_sig.titleRowIdx-2]=30; secMins[_sig.titleRowIdx-1]=30;   // two rows above signatories, 1.5x
     ws['!rows'] = ws['!rows'] || [];
@@ -5134,24 +4341,30 @@ async function exportEstimateExcel() {
   // Final sheet: PMO / PR Numbers — formatted to match the approved sheet
   const filledPmoPr = pmoPrAllFilled(e);
   if (filledPmoPr.length) {
-    const header = estimateHeaderRows(e, '');
-    const rows = header.concat([['PMO / PR Numbers']], [['Label','Number']], filledPmoPr.map(p=>[p.label, p.number]));
+    const header = estimateHeaderRows(e, '', 'PMO / PR Numbers');
+    // Three columns, with B:C merged on every row so the Number has room to
+    // print on one line. PR numbers are long (EE/400Kv/RS/DN/KARJAT/...) and
+    // were wrapping inside a single 20-character column.
+    const rows = header.concat([['PMO / PR Numbers']], [['Label','Number','']], filledPmoPr.map(p=>[p.label, p.number, '']));
     const ws = XLSXmod.utils.aoa_to_sheet(rows);
     ws['!noZebra'] = true;
     const styleMap = {};
     styleMap[header.length] = 'section';
     styleMap[header.length+1] = 'header';
-    applyRowStyles(ws, styleMap, 2);
+    applyRowStyles(ws, styleMap, 3);
     { const ad=XLSXmod.utils.encode_cell({r:header.length,c:0}); if(ws[ad]) ws[ad].s=Object.assign({}, XLSX_STYLES.section); }
     // zebra on alternate data rows
     const dataStart = header.length+2;
     for (let i=dataStart; i<rows.length; i++){
-      if ((i-dataStart)%2===1) for (let c=0;c<2;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
+      if ((i-dataStart)%2===1) for (let c=0;c<3;c++){ const ad=XLSXmod.utils.encode_cell({r:i,c}); if(ws[ad]){ ws[ad].s=ws[ad].s||{}; ws[ad].s.fill={patternType:'solid',fgColor:{rgb:'F4F7FC'}}; } }
     }
-    applyMsetclHeaderBanner(ws, 2);
-    ws['!cols'] = [{wch:75.29},{wch:20}];
+    // Merge B:C on the column-header row and every data row.
+    ws['!merges'] = ws['!merges'] || [];
+    for (let i = header.length+1; i < rows.length; i++) ws['!merges'].push({s:{r:i,c:1}, e:{r:i,c:2}});
+    applyMsetclHeaderBanner(ws, 3);
+    ws['!cols'] = [{wch:75.29},{wch:20},{wch:24}];
     ws['!freeze'] = { xSplit:0, ySplit:dataStart, topLeftCell:XLSXmod.utils.encode_cell({r:dataStart,c:0}), activePane:'bottomLeft', state:'frozen' };
-    autoRowHeights(ws, 14, {0:34.5,1:26.2,2:26.2,3:26.2,[header.length]:36.8,[header.length+1]:28.5});
+    autoRowHeights(ws, 14, {0:42, 1:39, 2:26.2, 3:26.2, 4:26.2, [header.length]:36.8, [header.length+1]:28.5});
     XLSXmod.utils.book_append_sheet(wb, ws, 'PMO-PR Numbers');
   }
 
@@ -5276,7 +4489,11 @@ function pdfBand(txt, fs, align, pageBreak){
   return node;
 }
 // Printable widths (A4 pt minus page margins minus a small safety gutter)
-const PDF_W_LAND = 842 - 48 - 6;   // landscape
+// Usable width, matched to whichever page size the document is using.
+const PDF_W_A4_LAND = 842 - 56;    // A4 landscape minus margins
+const PDF_W_A3_LAND = 1191 - 72;   // A3 landscape minus 36pt side margins
+function pdfUsableWidth(){ return PDF_W_A3_LAND; }
+const PDF_W_LAND = PDF_W_A4_LAND;  // legacy default for other exports
 const PDF_W_PORT = 595 - 48 - 6;   // portrait
 // Build a pdfmake table with COMPUTED numeric column widths, normalised so
 // their sum exactly equals the printable width — a table can therefore never
@@ -5286,7 +4503,7 @@ const PDF_W_PORT = 595 - 48 - 6;   // portrait
 function pdfTableNode(headers, rows, opt){
   opt = opt || {};
   const fs = opt.fs || 8;
-  const pageW = opt.pageWidth || PDF_W_LAND;
+  const pageW = opt.pageWidth || (typeof pdfUsableWidth==='function' ? pdfUsableWidth() : PDF_W_LAND);
   const ncols = Math.max(headers?headers.length:0, ...rows.map(r=>r.length), 1);
   const pad = (r) => { const a=r.slice(); while(a.length<ncols) a.push(''); return a; };
   // measure per-column content (chars)
@@ -5299,11 +4516,16 @@ function pdfTableNode(headers, rows, opt){
   });
   if (headers) measure(headers, true);
   rows.forEach(r=>measure(r, false));
-  // Explicit user weights (from the website width editor) win outright:
-  if (opt.weights && opt.weights.length===ncols && opt.weights.some(w=>w>0)) {
-    const tw = opt.weights.reduce((a,b)=>a+(+b||1),0);
-    const explicit = opt.weights.map(w => Math.max((+w||1)/tw*pageW, 16));
-    return buildPdfTable(explicit);
+  // Explicit weights win outright. They are padded/trimmed to ncols rather
+  // than requiring an exact match: one body row longer than the header used to
+  // silently discard the caller's widths and fall back to guessing.
+  if (opt.weights && opt.weights.some(w=>w>0)) {
+    const wArr = new Array(ncols).fill(0).map((_,i)=> +opt.weights[i] || 0);
+    const missing = wArr.reduce((a,b)=>a+(b>0?0:1),0);
+    if (missing) { const avg = wArr.reduce((a,b)=>a+b,0) / Math.max(ncols-missing,1);
+                   for (let i=0;i<ncols;i++) if (!wArr[i]) wArr[i] = avg; }
+    const tw = wArr.reduce((a,b)=>a+b,0);
+    return buildPdfTable(wArr.map(w => w/tw*pageW));
   }
   // convert to pt (≈0.52·fs per char + cell padding), then normalise to fit
   const pt = charLen.map(L => L * fs * 0.52 + 8);
@@ -5344,6 +4566,12 @@ function pdfTableNode(headers, rows, opt){
   }
   return buildPdfTable(widths);
   function buildPdfTable(w){
+    // Final guarantee: the columns sum to exactly the usable page width. Any
+    // per-column minimum applied upstream can push the total over the page,
+    // and pdfmake silently clips the overflow instead of reporting it.
+    const sum = w.reduce((a,b)=>a+b,0);
+    if (sum > pageW) { const k = pageW / sum; w = w.map(x=>x*k); }
+    else if (sum < pageW - 1) { const k = pageW / sum; w = w.map(x=>x*k); }
     const body = [];
     if (headers) body.push(pad(headers).map(hd=>({ text:pdfText(hd), bold:true, color:PDF_TXT, fillColor:PDF_GOLD_PALE, fontSize:fs })));
     rows.forEach((r,ri)=>{
@@ -5357,75 +4585,156 @@ function pdfTableNode(headers, rows, opt){
                  color:PDF_TXT, fillColor:isTot?PDF_CREAM:undefined, fontSize:fs };
       }));
     });
-    return { table:{ headerRows:headers?1:0, keepWithHeaderRows:1, dontBreakRows:true, widths:w, body }, layout:pdfGoldLayout(), margin:[0,0,0,8] };
+    // headerRows is the PDF equivalent of Excel's freeze panes: every page
+    // after the first reprints the column titles, so a long item table stays
+    // readable without scrolling back. keepWithHeaderRows stops a header row
+    // being orphaned at the foot of a page with no data under it.
+    const hRows = headers ? 1 : 0;
+    // dontBreakRows is deliberately OFF. With a long Full Description in a
+    // narrow column a single row can exceed the page height, and pdfmake
+    // cannot place it — the rest of the table is then lost. Allowing a row to
+    // split keeps every item on the sheet.
+    return { table:{ headerRows:hRows, keepWithHeaderRows:1, widths:w, body }, layout:pdfGoldLayout(), margin:[0,0,0,8] };
   }
 }
 function estimatePdfContent(e){
   const content = [];
-  content.push({ text:pdfText(e.division||''), bold:true, fontSize:10, color:'#4B5563', alignment:'center' });
-  content.push({ text:'SCOPE OF WORK:- '+pdfText(e.work||e.name||''), fontSize:9, alignment:'center', margin:[0,2,0,0] });
-  content.push({ text:`Estimation No: ${pdfText(e.number||'\u2014')}   |   SOR No: ${pdfText((e.sorVersions||[]).join(', ')||'\u2014')}   |   Date: ${pdfText(fmtDate(e.date))}`, fontSize:9, alignment:'center', margin:[0,2,0,4] });
-  // Abstract
-  const abs = abstractSheetRows(true);
-  content.push(pdfBand('Abstract ('+estimateTypeLabel(e.estimateType)+')', 12, 'left'));
-  content.push(pdfTableNode(null, abs, {
+  // Page banner — the same five header lines the workbook prints, so a PDF
+  // page and a spreadsheet page identify themselves identically.
+  const banner = (label)=>{
+    const hdr = estimateHeaderRows(e, '', label);
+    return hdr.map((r,i)=>({
+      text: pdfText(String(r[0]||'')),
+      alignment: i<=1 ? 'center' : 'left',
+      bold: i<=1, fontSize: i===0 ? 13 : (i===1 ? 11 : 8.5),
+      fillColor: i<=1 ? '#D9DDE3' : undefined,
+      margin: [0, i===0?0:1, 0, i===4?4:1],
+    }));
+  };
+
+  // ── Abstract ──
+  content.push(...banner('Abstract'));
+  content.push(pdfTableNode(null, abstractSheetRows(true), {
     starCol:(i)=>i===1, rupeeCol:(i)=>i===2,
     totalRow:(r)=> (typeof r[1]==='string' && /^(Total Estimated cost with Centages|TOTAL ESTIMATED COST|AMC Amount Limit)/.test(r[1])),
     fs:9
   }));
-  // Sections (each on its own page)
-  const sectionDefs = [
-    ['supply','Supply Material'],['project','ETC Part'],['om','O&M Services Part'],
-    ['nonsor_supply','Non-SOR Materials'],['nonsor_om','Non-SOR Services'],
-  ].filter(d=>sectionConfig(d[0]).items.length);
-  sectionDefs.forEach(def=>{
-    const rows = sectionItemTableRows(def[0]);
-    const headers = rows[0].map(pdfAbbrHeader), body = rows.slice(1);
-    const feW = null;   // manual column widths removed — widths are derived
-    const prNo = pmoPrForSection(e, def[0]==='supply'?['supply']:def[0]==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
-    content.push(pdfBand(def[1] + (prNo?'   —   PR No.: '+prNo:''), 12, 'left', 'before'));
-    // Full Description (ZEST03) wraps like Description and shifts the amount
-    // columns right — resolve both from the un-abbreviated header row.
+
+  // ── Section sheets, in workbook order, one per page ──
+  estimateSheetDefs(e).forEach(def=>{
+    const itemsOverride = def.items || null;
+    const srcItems = itemsOverride || sectionConfig(def.key).items;
+    if (!srcItems.length) return;
+
+    let rows = sectionItemTableRows(def.key, itemsOverride, {noSpares: !!def.noSpares});
+    if (def.remarks) rows = appendRemarksColumn(rows, srcItems);
+
     const H0 = rows[0];
+    const headers = H0.map(pdfAbbrHeader), body = rows.slice(1);
+    const n = H0.length;
     const fullIdx = H0.findIndex(h=>/full\s*description/i.test(String(h)));
     const amt0 = (()=>{ const i = H0.findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
+
+    // ── Column widths, numeric columns first ──
+    //
+    // The previous version handed Description + Full Description 69% of the
+    // page and split the remaining 31% between eleven numeric columns — about
+    // 22pt each, when "₹33,08,85,512.50" needs ~74pt. Every amount wrapped and
+    // clipped, which is why figures came out as fragments.
+    //
+    // Now the numeric columns are measured from their actual content and
+    // reserved FIRST; the text columns share whatever is left. Amounts can
+    // never be squeezed, because they are not the ones that give way.
+    // Wider tables get a smaller face. Thirteen columns at 7.5pt leaves the
+    // amounts too tight; 6.5pt buys back roughly 13% on every column.
+    const FS = 7.5;
+    const isText = (i)=> i===2 || i===fullIdx;
+    const need = new Array(n).fill(0);
+    for (let i=0;i<n;i++){
+      if (isText(i)) continue;
+      let maxLen = String(headers[i]||'').split(/\s+/).reduce((m,w)=>Math.max(m,w.length), 4);
+      body.forEach(r=>{
+        const c = r[i];
+        const t = (typeof c==='number') ? ('₹'+fmtNum(c)) : String(c==null?'':c);
+        if (t.length > maxLen) maxLen = t.length;
+      });
+      need[i] = Math.min(maxLen, 17) * FS * 0.58 + 6;      // cap runaway strings
+    }
+    const PAGE_W = pdfUsableWidth();
+    const reserved = need.reduce((a,b)=>a+b,0);
+    const textCols = [2].concat(fullIdx>-1 ? [fullIdx] : []);
+    let leftover = PAGE_W - reserved;
+
+    // Text columns need a floor to stay readable. If the numerics have eaten
+    // everything, claw back proportionally rather than letting a column vanish.
+    const TEXT_MIN = 52;
+    if (leftover < TEXT_MIN * textCols.length) {
+      const want = TEXT_MIN * textCols.length;
+      const shrink = (PAGE_W - want) / reserved;
+      for (let i=0;i<n;i++) if (!isText(i)) need[i] *= shrink;
+      leftover = want;
+    }
+    // Description : Full Description = 40 : 60 when both are present.
+    const share = textCols.length === 2 ? [0.4, 0.6] : [1];
+    textCols.forEach((ci,k)=> need[ci] = leftover * share[k]);
+
+    const weights = need;
+
+    content.push({ text:'', pageBreak:'before' });
+    content.push(...banner(def.name));
+
     content.push(pdfTableNode(headers, body, {
       starCol:(i)=> i===2 || i===fullIdx,
-      starRatio: fullIdx>-1 ? ((i)=> i===fullIdx ? 1.5 : 0.8) : null,
-      rupeeCol:(i)=>i>=amt0, totalRow:(r)=> r[2]==='TOTAL',
-      fs: headers.length>=12?7:8, weights: feW }));
-    // audit-style totals summary (mirrors the webpage totals box)
-    const t = sectionTotalsCalc(def[0]); const rs = effectiveRates();
-    const sum = [['Base Cost (Ex-works excl. T&D)', t.base]];
-    if (t.ac) sum.push(['Additional Charge', t.ac]);
-    if ((rs.labourCess||0)>0) sum.push(['Labour Cess @ '+rs.labourCess+'%', t.lc]);
-    if (t.fi) sum.push(['Freight & Insurance @ '+rs.freightInsurance+'%', t.fi]);
-    if ((rs.gst||0)>0) sum.push(['GST @ '+rs.gst+'%', t.gst]);
-    if (t.spares) sum.push(['Supply Spares @ 3%', t.spares]);
-    sum.push([(sectionConfig(def[0]).title||'Section')+' Total'+(t.spares?' (incl. Spares)':''), t.total]);
-    content.push({ columns:[ {width:'*', text:''}, { width:280, table:{ widths:['*','auto'], body: sum.map((r,ri)=>[
-      {text:pdfText(r[0]), bold: ri===sum.length-1, fontSize:8, color:PDF_TXT, fillColor: ri===sum.length-1?PDF_CREAM:PDF_GOLD_PALE},
-      {text:'₹'+fmtNum(r[1]), alignment:'right', bold: ri===sum.length-1, fontSize:8, color:PDF_TXT, fillColor: ri===sum.length-1?PDF_CREAM:undefined}
-    ]) }, layout:pdfGoldLayout() } ], margin:[0,2,0,6] });
+      rupeeCol:(i)=> i>=amt0,
+      weights,
+      totalRow:(r)=> String(r[2]||'')==='TOTAL' || /^Add: Supply Spares|^Supply Part Total/.test(String(r[2]||'')),
+      fs:FS,
+    }));
+    content.push(pdfSignatoryNode(e, {skipFirst: !!def.skipFirstSig}));
   });
-  // PMO / PR
+
+  // ── PMO / PR Numbers, the workbook's last tab ──
   const pmo = pmoPrAllFilled(e);
-  if (pmo.length){
-    content.push(pdfBand('PMO / PR Numbers', 12, 'left', 'before'));
-    content.push(pdfTableNode(['Label','Number'], pmo.map(p=>[p.label,p.number]), { starCol:(i)=>i===0, fs:9 }));
-  }
-  // Final Estimate mode: the uploaded ZEST03 sheet as appendix pages
-  if (typeof FE!=='undefined' && FE.attachRaw && FE.rawGrid) {
-    content.push(pdfBand(FE.rawSheetLabel||'ZEST03 (uploaded sheet)', 12, 'left', 'before'));
-    content.push(pdfTableNode(null, FE.rawGrid, { fs:6 }));
+  if (pmo.length) {
+    content.push({ text:'', pageBreak:'before' });
+    content.push(...banner('PMO / PR Numbers'));
+    content.push(pdfTableNode(['Label','Number'], pmo.map(x=>[x.label, x.number]),
+      { starCol:(i)=>i===0, weights:[70,30], fs:9 }));
+    content.push(pdfSignatoryNode(e));
   }
   return content;
 }
+
+// Signatory footer as a borderless four-up row, mirroring the sheet footer.
+function pdfSignatoryNode(e, opts){
+  let sig = estimateSignatories(e);
+  if (opts && opts.skipFirst) sig = sig.slice(1);
+  sig = sig.filter(s=>!s.hidden);
+  if (!sig.length) return { text:'' };
+  return {
+    margin:[0,26,0,0], unbreakable:true,
+    columns: sig.map(s=>({
+      width:'*', alignment:'center', stack:[
+        { text:pdfText(s.title||''), bold:true, fontSize:8.5 },
+        { text:pdfText(s.office||''), fontSize:8 },
+      ]
+    })),
+  };
+}
+
+// A ZEST03 estimate carries 13 columns — Sr, Mat No, Description, Full
+// Description, UoM, Qty and seven money columns. On A4 landscape that leaves
+// about 42pt for Description, which is unusable, and rupee figures wrap and
+// clip. A3 landscape is the correct sheet for that shape; A4 is kept for the
+// narrower estimates where it works.
+function pdfPageSize(){ return 'A3'; }
 function pdfDocBase(content){
   return {
-    pageSize:'A4', pageOrientation:'landscape', pageMargins:[24,30,24,26],
+    pageSize:pdfPageSize(), pageOrientation:'landscape', pageMargins:[36,30,36,32],
     content, defaultStyle:{ fontSize:8, color:PDF_TXT },
-    header:function(){ return { text:pdfText(MSETCL_HEADER_LINE1), alignment:'center', fontSize:8, bold:true, color:'#4B5563', margin:[0,10,0,0] }; },
+    // No running header: the banner block at the top of each sheet already
+    // carries the company name. Printing both put it a second time in the
+    // middle of the page.
     footer:function(cur,tot){ return { text:cur+' / '+tot, alignment:'right', margin:[0,6,24,0], fontSize:7, color:'#9a9a9a' }; },
     pageBreakBefore:function(node, following){ return node.headlineLevel===1 && following.length===0; },
   };
@@ -5480,19 +4789,38 @@ async function printEstimate(orientation){
   const e = ST.currentEstimate;
   const root = document.createElement('div'); root.id = 'PRINT_ROOT';
   let html = `<style>${sharedPrintCSS()}</style>`;
-  const hdr = estimateHeaderRows(e, '');
-  const hdrHtml = `<div class="print-banner" style="text-align:center;margin-bottom:8px">${hdr.map((r,i)=>`<div style="font-weight:${i===0?'800':'600'};font-size:${i===0?'15':'12'}px">${escapeHtml(String(r[0]))}</div>`).join('')}</div>`;
-  const sigHtml = printSignatoryHtml(e);
-  html += `<div class="pg">${hdrHtml}<h2>Abstract</h2>${printHtmlTable(abstractSheetRows(true), {rupeeCol:(i)=>i===2})}${sigHtml}</div>`;
-  [['supply','Supply Material'],['project','ETC — Project Services'],['om','O&M Services'],['nonsor_supply','Non-SOR Materials'],['nonsor_om','Non-SOR Services']].forEach(([k,t])=>{
-    if (!sectionConfig(k).items.length) return;
-    const rows = sectionItemTableRows(k);
+  // The printed document IS the workbook, minus the ZEST03 tab: same sheet
+  // list (estimateSheetDefs), same row builders, same order. Nothing here
+  // decides what goes on a page — it only decides how those rows look on
+  // paper.
+  const banner = (label)=>{
+    const hdr = estimateHeaderRows(e, '', label);
+    return `<div class="print-banner" style="text-align:center;margin-bottom:8px">${
+      hdr.map((r,i)=>`<div style="font-weight:${i<=1?'800':'600'};font-size:${
+        i===0?'19':(i===1?'15':'11')}px;${i<=1?'background:#D9DDE3;padding:2px 0;':''}">${
+        escapeHtml(String(r[0]))}</div>`).join('')}</div>`;
+  };
+
+  // ── 1. Abstract ──
+  html += `<div class="pg">${banner('Abstract')}${
+    printHtmlTable(abstractSheetRows(true), {rupeeCol:(i)=>i===2})}${printSignatoryHtml(e)}</div>`;
+
+  // ── 2. Section sheets, in workbook order ──
+  estimateSheetDefs(e).forEach(def => {
+    const itemsOverride = def.items || null;
+    const srcItems = itemsOverride || sectionConfig(def.key).items;
+    if (!srcItems.length) return;
+
+    let rows = sectionItemTableRows(def.key, itemsOverride, {noSpares: !!def.noSpares});
+    if (def.remarks) rows = appendRemarksColumn(rows, srcItems);
+
     const n = rows[0].length;
     const fullIdx = rows[0].findIndex(h=>/full\s*description/i.test(String(h)));
     const amt0 = (()=>{ const i = rows[0].findIndex(h=>/exworks\s*price/i.test(String(h))); return i>-1 ? i : 5; })();
+
     // Description holds 30% on its own; with ZEST03's Full Description present
-    // the pair splits 80 : 150 (24% / 45%), scaled back proportionally if that
-    // would squeeze the numeric columns below a legible floor.
+    // the pair splits 24 : 45, scaled back proportionally if that would squeeze
+    // the numeric columns below a legible floor.
     const sw = new Array(n).fill(0);
     let dW = 30, fW = 0;
     if (fullIdx > -1) { dW = 24; fW = 45; }
@@ -5504,16 +4832,32 @@ async function printEstimate(orientation){
       dW = avail*dW/tot; fW = avail*fW/tot; rest = MIN_COL;
     }
     for (let i=0;i<n;i++) sw[i] = +(i===2 ? dW : (i===fullIdx ? fW : rest)).toFixed(2);
-    const prNo = pmoPrForSection(e, (k==='supply'||k==='nonsor_supply')?['supply']:k==='project'?['project','etc']:['o&m','om','service']).replace(/^.*No-\s*/,'');
-    // Header banner repeats at the top of every page, exactly like the sheets.
-    html += `<div class="pg">${hdrHtml}<h2>${escapeHtml(t)}${prNo?'   —   PR No.: '+escapeHtml(prNo):''}</h2>${printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)), {rupeeCol:(i)=>i>=amt0, widths:sw, leftCol:(i)=>i===2||i===fullIdx})}${sigHtml}</div>`;
+
+    // Non-SOR sheets are signed by three, not four — same rule as the workbook.
+    const sigs = def.skipFirstSig ? printSignatoryHtml(e, {skipFirst:true}) : printSignatoryHtml(e);
+    html += `<div class="pg">${banner(def.name)}${
+      printHtmlTable([rows[0].map(pdfAbbrHeader)].concat(rows.slice(1)),
+        {rupeeCol:(i)=>i>=amt0, widths:sw, leftCol:(i)=>i===2||i===fullIdx})}${sigs}</div>`;
   });
+
+  // ── 3. PMO / PR Numbers, the workbook's last tab ──
+  const pmoRows = pmoPrAllFilled(e);
+  if (pmoRows.length) {
+    html += `<div class="pg">${banner('PMO / PR Numbers')}${
+      printHtmlTable([['Label','Number']].concat(pmoRows.map(x=>[x.label, x.number])),
+        {widths:[70,30], leftCol:(i)=>i===0||i===1})}${printSignatoryHtml(e)}</div>`;
+  }
+
   root.innerHTML = html;
   doPrintAndCleanup(root);
 }
 // Signatory footer for printed pages (mirrors the sheet footer).
-function printSignatoryHtml(e){
-  const sig = estimateSignatories(e).filter(s=>!s.hidden);
+function printSignatoryHtml(e, opts){
+  let sig = estimateSignatories(e);
+  // Non-SOR sheets carry only the last three signatories — they are audited
+  // separately before the main sheets are signed.
+  if (opts && opts.skipFirst) sig = sig.slice(1);
+  sig = sig.filter(s=>!s.hidden);
   if (!sig.length) return '';
   return `<table class="print-sig" style="margin-top:22px;border:none"><tr>${
     sig.map(s=>`<td style="border:none;text-align:center;vertical-align:bottom;padding:6px 10px;font-size:11px">
@@ -6261,7 +5605,7 @@ function renderRPNonSor(zone) {
     <div class="card">
       <div class="card-head">
         <h3>Non-SOR Items</h3>
-        ${canEdit() ? `<button class="btn btn-gold btn-sm" onclick="openAddNonSORModal('rates')">+ Add Non-SOR Item</button>` : ''}
+        ${canEdit() ? `<button class="btn btn-gold btn-sm" onclick="openNonSORAddChooser('rates')">+ Add Non-SOR Item</button>` : ''}
       </div>
       <div class="flex gap-2" style="margin-bottom:12px">
         <input type="text" id="rp-ns-search" placeholder="Search…" oninput="onRPNSSearchInput()" style="flex:1">
@@ -7803,7 +7147,7 @@ function renderAdminNonSOR() {
 function renderAdminDbConn() {
   const zone = document.getElementById('admin-dbconn-body');
   zone.innerHTML = `
-    <div class="field"><label>Apps Script Web App URL</label>
+    <div class="field"><label>Backend URL</label>
       <input type="text" id="dbconn-url" value="${escapeHtml(SURL)}">
     </div>
     <div class="flex items-center gap-2" style="margin-bottom:10px">
@@ -7815,18 +7159,16 @@ function renderAdminDbConn() {
       <button class="btn btn-ghost" onclick="resetDbConnection()">Reset to Default</button>
     </div>
     <div class="collapse" style="margin-top:18px">
-      <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">📜 Apps Script Backend Source &amp; Deployment Guide</span><span class="chev">▸</span></div>
+      <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">🛠 Backend Deployment &amp; Redeploy Guide</span><span class="chev">▸</span></div>
       <div class="collapse-body"><div class="collapse-body-inner">
+        <p class="text-sm mb-1">The backend is a Supabase Edge Function kept in its own repository. To ship a change:</p>
         <ol class="text-sm" style="padding-left:18px; line-height:1.8; margin-bottom:12px">
-          <li>Go to <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a> and create a new project (or open your existing one).</li>
-          <li>Select all existing code in the editor and replace it with the code below.</li>
-          <li><b>Deploy → Manage deployments → Edit (pencil icon) → New version → Deploy</b> — or <b>Deploy → New deployment</b> if this is the first time.</li>
-          <li>Make sure <b>Execute as: Me</b> and <b>Who has access: Anyone</b> are set.</li>
-          <li>Copy the Web app URL it gives you (ends in <code>/exec</code>) and paste it above.</li>
+          <li>Edit <code>supabase/functions/msetcl/index.ts</code> in the backend repo.</li>
+          <li>Run <code>supabase functions deploy msetcl --no-verify-jwt</code>.</li>
+          <li>Click <b>Test Connection</b> above — the version badge should change.</li>
         </ol>
-        <p class="hint mb-1">This script additively extends your existing sheets — no data is overwritten or deleted, and new columns are only appended.</p>
-        <textarea readonly style="height:240px; font-family:var(--font-mono); font-size:11px" onclick="this.select()">${escapeHtml(APPS_SCRIPT_CODE)}</textarea>
-        <button class="btn btn-ghost btn-sm mt-1" onclick="copyAppsScriptCode()">📋 Copy to Clipboard</button>
+        <p class="hint mb-1">Schema changes go through the SQL Editor, not the function. Adding a column never removes or rewrites existing data.</p>
+        <p class="hint">The <code>--no-verify-jwt</code> flag is required: it keeps requests free of a CORS preflight round trip. Access control is enforced inside the function, and Row Level Security blocks all direct table access from the browser.</p>
       </div></div>
     </div>
   `;
@@ -7873,9 +7215,7 @@ function confirmResetDbConnection() {
   localStorage.removeItem(SCRIPT_URL_KEY);
   location.reload();
 }
-function copyAppsScriptCode() {
-  navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(()=>toast('Copied to clipboard.', 'ok'));
-}
+/* copyAppsScriptCode() removed — the Apps Script source is no longer bundled. */
 
 // ── AI Estimate Creator access management ──
 async function renderAdminAi() {
@@ -8101,7 +7441,7 @@ function renderOrderBookList(list) {
   groups.forEach(g => {
     const items = sorted.filter(e => categoryOf(e) === g.key);
     if (!items.length) return;
-    html += `<div class="dash-cat-section"><div class="dash-cat-head">${g.label} <span class="badge badge-neutral">${items.length}</span></div>`;
+    html += `<div class="dash-cat-section"><div class="embroidery" aria-hidden="true"></div><div class="dash-cat-head">${g.label} <span class="badge badge-neutral">${items.length}</span></div>`;
     // FY-based: collapsible groups, newest FY first; no-FY drafts at the bottom
     const fyMap = {};
     items.filter(e=>estimateFY(e)).forEach(e=>{ const fy=estimateFY(e); (fyMap[fy]=fyMap[fy]||[]).push(e); });
@@ -8642,7 +7982,7 @@ async function aicZestUpload(evt){
     };
     AIC.draftMeta = {
       name: parsed.meta.estFor || ('Estimate ' + (parsed.meta.estNo||'')),
-      number: parsed.meta.estNo || '', date: parsed.meta.estDate || '',
+      number: parsed.meta.estNo || '', date: dfNormalise(parsed.meta.estDate),
       sorVersions: parsed.meta.sor ? [parsed.meta.sor] : [],
       pmoPrEntries: [
         {label:'Supply Material', number:(built.prNos.supply||'').trim()},
@@ -9170,7 +8510,9 @@ function feFillPmoPrFromZest03(e, prNos, meta){
   // Fixed display sequence. Entries with no value are SKIPPED, so the ones
   // that follow move up — there are never blank gaps in the middle.
   const estNo   = String(meta.estNo||'').trim();
-  const estDate = String(meta.estDate||'').trim();
+  // fmtDate leaves an already-formatted value untouched, so this is safe
+  // whether the date came from an ISO estimate or from an uploaded ZEST03.
+  const estDate = fmtDate(String(meta.estDate||'').trim());
   const SEQUENCE = [
     {key:'supply',  label:'Supply PR',                 value:String(prNos.supply ||'').trim()},
     {key:'project', label:'Project Services PR',       value:String(prNos.project||'').trim()},
@@ -9274,7 +8616,8 @@ function feBuildSyntheticEstimate(){
     const b = FE.baseEstimate;
     est = {
       id:'', name:(m.estFor||b.name||('Final Estimate '+(m.estNo||''))).slice(0,120),
-      number:m.estNo||b.number||'', date:m.estDate||b.date||'',
+      number:m.estNo||b.number||'', date:dfNormalise(m.estDate||b.date||''),
+      settings:Object.assign({}, b.settings, {zest03:{estNo:m.estNo||'', estDate:dfNormalise(m.estDate)}}),
       division:b.division||'', work:m.estFor||b.work||'', sorVersions:m.sor?[m.sor]:(b.sorVersions||[]),
       estimateType:b.estimateType||'project', amcAmount:0, finalTotal:0,
       addCharge:b.addCharge||{}, settings:b.settings||{}, pmoPrEntries:[], progressImages:[],
@@ -9282,7 +8625,8 @@ function feBuildSyntheticEstimate(){
     };
   } else {
     est = {
-      id:'', name:(m.estFor||('Final Estimate '+(m.estNo||''))).slice(0,120), number:m.estNo||'', date:m.estDate||'',
+      id:'', name:(m.estFor||('Final Estimate '+(m.estNo||''))).slice(0,120), number:m.estNo||'', date:dfNormalise(m.estDate),
+      settings:{zest03:{estNo:m.estNo||'', estDate:dfNormalise(m.estDate)}},
       division:FE.division||'', work:m.estFor||'', sorVersions:m.sor?[m.sor]:[],
       estimateType:FE.estimateType, amcAmount:0, finalTotal:0,
       addCharge:{ supply:FE.acSupply?'yes':'no', project:FE.acProject?'yes':'no', nonsor_supply:'no' },
@@ -9570,11 +8914,47 @@ function renderFinalEstimateResult(){
           <div class="fe-sig-office">${escapeHtml(x.office||'')}</div></td>`).join('')}</tr></tbody></table>`;
   })();
   const abstractRows = feWithSynthetic(()=> abstractSheetRows(true));
-  const secRows = feWithSynthetic(()=> ({
-    supply: res.supply.length?sectionItemTableRows('supply'):null,
-    project: res.project.length?sectionItemTableRows('project'):null,
-    om: res.om.length?sectionItemTableRows('om'):null,
-  }));
+  // Five sections, matching the Excel export exactly.
+  //
+  // The old version built only supply/project/om, and keyed them off
+  // res.supply.length — the RAW ZEST03 group, which mixes SoR and Non-SOR
+  // together. But sectionConfig('supply') filters to `!isCustom`, so every
+  // Non-SOR item was dropped from the table while still being counted in the
+  // header badge. Result: Non-SOR materials and services appeared in the
+  // Excel download but were invisible in the preview, and the item counts
+  // disagreed with the rows beneath them.
+  //
+  // Counts now come from the same filter that produces the rows, so the
+  // badge can never contradict the table.
+  // ZEST03 PREVIEW ONLY. Nothing here touches the portal's own section
+  // calculations — it is all done with itemsOverride, which exists exactly so
+  // a sheet can be built from a hand-picked set of items.
+  //
+  // ZEST03 reports every line under supply / project / om regardless of whether
+  // it is SOR or Non-SOR, so the preview must do the same: those three sections
+  // list ALL items of their part, and their totals are the real ones.
+  //
+  // The Non-SOR sections below are a reading aid — "which of these are
+  // Non-SOR, and what are they worth?". They show their own totals, but those
+  // figures feed nothing: the same amounts are already inside Supply and O&M.
+  const secRows = feWithSynthetic(()=>{
+    const all = (sec)=> (ST.currentItems||[]).filter(it=> it.section===sec);
+    const nonSor = (sec)=> (ST.currentItems||[]).filter(it=> it.isCustom && it.section===sec);
+    const build = (key, items, opts)=>{
+      const list = items || [];
+      return { rows: list.length ? sectionItemTableRows(key, list, opts) : null, count: list.length };
+    };
+    return {
+      supply:  build('supply',  all('supply')),
+      project: build('project', all('project')),
+      om:      build('om',      all('om')),
+      // These carry their own totals so the Non-SOR value is visible at a
+      // glance. Nothing downstream reads them: the same amounts are already
+      // inside the Supply / O&M totals above.
+      nonsor_supply: build('supply', nonSor('supply'), {noSpares:true}),
+      nonsor_om:     build('om',     nonSor('om')),
+    };
+  });
   const secTbl = (secKey, rows) => {
     const head = rows[0], body = rows.slice(1);
     const fullIdx = head.findIndex(h=>/full\s*description/i.test(String(h)));
@@ -9593,19 +8973,34 @@ function renderFinalEstimateResult(){
         // bold, the way it reads on the official sheet. Exports are untouched.
         const isWords = typeof r[2]==='string' && /in Words:/i.test(r[2]);
         if (isWords) return `<tr class="fe-words-row"><td class="fe-words" colspan="${N}">${escapeHtml(String(r[2]))}</td></tr>`;
+        // TOTAL / Supply Spares / Supply Part Total: the label is long and was
+        // wrapping inside one narrow Description cell. Span it across the next
+        // three columns — they are empty on these rows anyway — so it sits on
+        // one line. Guarded on width so narrower sheets fall back safely.
+        if (isTot && N > 6) {
+          const cells = [];
+          for (let i = 0; i < r.length; i++) {
+            if (i >= 3 && i <= 5) continue;            // absorbed by the colspan
+            const c = r[i];
+            if (i === 2) { cells.push(`<td class="fe-total-title" colspan="4">${escapeHtml(String(c))}</td>`); continue; }
+            const isNum = typeof c === 'number';
+            cells.push(`<td class="${isNum?'num-cell fe-total-amt':''}${dcls(i)}">${isNum?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`);
+          }
+          return `<tr class="fe-total">${cells.join('')}</tr>`;
+        }
         return `<tr class="${isTot?'fe-total':''}${isNonSorRow?' fe-nonsor':''}">${r.map((c,i)=>`<td class="${typeof c==='number'?'num-cell':''}${dcls(i)}">${typeof c==='number'?((i>=amt0?'₹':'')+fmtNum(c)):escapeHtml(String(c))}</td>`).join('')}</tr>`;
       }).join('')}</tbody></table></div>`;
   };
   let html = `
     <div class="card fe-noprint" style="margin-bottom:14px">
-      <div><div class="fw-700">Estimation No: ${escapeHtml(m.estNo||'—')} &nbsp;|&nbsp; SOR: ${escapeHtml(m.sor||'—')} &nbsp;|&nbsp; Date: ${escapeHtml(m.estDate||'—')}</div>
+      <div><div class="fw-700">Estimation No: ${escapeHtml(m.estNo||'—')} &nbsp;|&nbsp; SOR: ${escapeHtml(m.sor||'—')} &nbsp;|&nbsp; Date: ${escapeHtml(fmtDate(m.estDate)||'—')}</div>
       <div class="text-sm text-muted">${escapeHtml(m.estFor||'')}</div></div>
       <div class="collapse" style="margin-top:10px">
         <div class="collapse-head" onclick="toggleCollapse(this)"><span class="fw-700 text-sm">⬇ Download Final Estimate</span><span class="chev">▸</span></div>
         <div class="collapse-body"><div class="collapse-body-inner">
           <div class="flex gap-2" style="flex-wrap:wrap">
             <button class="btn btn-gold" onclick="feDownloadExcel()">⬇ Download Excel</button>
-            <button class="btn btn-ghost" onclick="feDownloadPrint()">🖨 Print</button>
+            <button class="btn btn-ghost" onclick="exportEstimatePDF()">⬇ Download PDF</button>
             <button class="btn btn-ghost" onclick="feDownloadRawZest()">⬇ Uploaded ZEST03</button>
             <button class="btn btn-ghost" onclick="renderFinalEstimateResult()">↺ Refresh Preview</button>
           </div>
@@ -9614,9 +9009,23 @@ function renderFinalEstimateResult(){
       </div>
     </div>
     <div class="card fe-print-page" style="margin-bottom:14px"><h3>Abstract</h3>${tbl(abstractRows, true)}${sigHtml}</div>`;
-  [['supply','Supply Material',res.supply,secRows.supply],['project','ETC — Project Services',res.project,secRows.project],['om','O&M Services',res.om,secRows.om]].forEach(([key,title,items,rows])=>{
-    html += `<div class="card${rows?' fe-print-page':' fe-noprint'}" style="margin-bottom:14px"><h3>${title} <span class="badge badge-neutral">${items.length} items</span>${res.prNos[key]?` <span class="text-sm text-muted">PR: ${escapeHtml(res.prNos[key])}</span>`:''}</h3>
-      ${rows?secTbl(key, rows):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
+  // Non-SOR sections carry the PR of the part they belong to, and are shown
+  // only when they actually contain something — an empty "Non-SOR Services"
+  // card on every estimate would be noise.
+  const FE_SECTIONS = [
+    ['supply',        'Supply Material',        'supply', true ],
+    ['project',       'ETC — Project Services', 'project', true ],
+    ['om',            'O&M Services',           'om',      true ],
+    ['nonsor_supply', 'Non-SOR Materials (listed above, total not to be counted as it is already considered in Supply Material)', 'supply', false],
+    ['nonsor_om',     'Non-SOR Services (listed above, total not to be counted as it is already considered in O&M Services)',      'om',     false],
+  ];
+  FE_SECTIONS.forEach(([key, title, prKey, alwaysShow])=>{
+    const sec = secRows[key] || {rows:null, count:0};
+    if (!alwaysShow && !sec.count) return;
+    const pr = res.prNos[prKey];
+    const badge = key.indexOf('nonsor')===0 ? 'badge-gold' : 'badge-neutral';
+    html += `<div class="card${sec.rows?' fe-print-page':' fe-noprint'}" style="margin-bottom:14px"><h3>${title} <span class="badge ${badge}">${sec.count} items</span>${pr?` <span class="text-sm text-muted">PR: ${escapeHtml(pr)}</span>`:''}</h3>
+      ${sec.rows?secTbl(key, sec.rows):'<p class="text-muted text-sm">No items in this section.</p>'}</div>`;
   });
   if (res.notFound.length){
     html += `<div class="card fe-noprint" style="margin-bottom:14px"><h3>⚠ Items Not Classified <span class="badge badge-neutral">${res.notFound.length}</span></h3>
@@ -9638,8 +9047,10 @@ async function feWithSyntheticAsync(fn){
   catch(err){ console.error('Final Estimate export failed:', err); toast('Export failed: '+(err.message||'error'),'err',7000); }
   finally { ST.currentEstimate = savedE; ST.currentItems = savedI; ST.chargeRates = savedR; FE.attachRaw = false; }
 }
-async function feDownloadExcel(){ await feWithSyntheticAsync(()=> exportEstimateExcel()); }
-async function feDownloadPDF(){ await feWithSyntheticAsync(()=> exportEstimatePDF()); }
+// Fetch the Non-SOR catalog BEFORE the synthetic-estimate swap, so no network
+// wait happens while ST.currentItems is temporarily replaced.
+async function feDownloadExcel(){ await ensureRemarksSource(); await feWithSyntheticAsync(()=> exportEstimateExcel()); }
+async function feDownloadPDF(){ await ensureRemarksSource(); await feWithSyntheticAsync(()=> exportEstimatePDF()); }
 async function feDownloadRawZest(){
   if (!FE.rawGrid) { toast('No uploaded ZEST03 sheet is stored for this estimate.','warn'); return; }
   try {
