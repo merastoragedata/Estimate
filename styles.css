@@ -1,88 +1,77 @@
-/* MSETCL Estimate Generator — stylesheet
-   ─────────────────────────────────────────────────────────────────────────
-   v2 "WARM" REVAMP. Structure, geometry and class names are unchanged from
-   v1 — every padding, grid, width and breakpoint is exactly as it was. What
-   changed is colour, texture and motion.
-
-   Token NAMES are deliberately kept (--navy-900, --gold-400, --steel-600 …)
-   even though the values are no longer navy or gold. Renaming them would
-   mean touching hundreds of rules and the render code; remapping the values
-   recolours the entire application from one place with zero risk.
-
-     --navy-*   → warm espresso / graphite   (chrome: topbar, sidenav)
-     --steel-*  → warm taupe neutrals        (text + hairlines)
-     --gold-*   → copper                     (the single accent)
-     --cyan / --indigo / --violet → brass / clay / sienna
-   ───────────────────────────────────────────────────────────────────────── */
+/* MSETCL Estimate Generator — luxury stylesheet (externalized) */
 
 :root{
-  /* Chrome — warm dark. Espresso rather than blue-black, so the topbar and
-     sidenav sit in the same family as the paper instead of against it. */
-  --navy-950:#171310;   /* deepest — sidenav                       */
-  --navy-900:#211C18;   /* primary chrome — topbar                 */
-  --navy-800:#2C2520;   /* secondary chrome                        */
-  --navy-700:#4A3E34;   /* raised chrome / focus ring base          */
+  /* ════════════════════════════════════════════════════════════════
+     LUXURY-TECH PALETTE — deep navy → indigo chrome, electric cyan +
+     indigo/violet accents, and a three-stop premium gold (champagne →
+     metal → pale). Existing token *names* are preserved so the entire
+     app inherits the new system with zero render-code changes.
+     ════════════════════════════════════════════════════════════════ */
 
-  /* Warm neutrals — text and lines on paper */
-  --steel-100:#F5F0E8; --steel-200:#E8E0D3; --steel-300:#B6AA98; --steel-400:#9B8E7D;
-  --steel-600:#6F6356; --steel-700:#4E453B; --ink:#241F1B;
+  /* Deep backgrounds (used for chrome: topbar, sidenav, totals, dark fills) */
+  --navy-950:#07111F;   /* deepest — hero/setup background        */
+  --navy-900:#0D1628;   /* primary chrome                        */
+  --navy-800:#101826;   /* secondary chrome                      */
+  --navy-700:#1c2b4a;   /* raised chrome                         */
 
-  /* Copper — the one accent. Carries actions, active nav, money and totals. */
-  --gold-400:#B4633A;   /* primary copper                          */
-  --gold-500:#9C5230;   /* deeper copper                           */
-  --gold-600:#7E3F22;   /* copper text on light                    */
-  --gold-pale:#F1DDCF;  /* copper wash                             */
-  --copper:#B4633A;
+  /* Cool neutrals — text + lines on light surfaces */
+  --steel-100:#eef2f8; --steel-200:#dfe5f1; --steel-300:#94A3B8; --steel-400:#7c8aa8;
+  --steel-600:#54627e; --steel-700:#3c4763; --ink:#101826;
 
-  /* Warm secondaries — these token names are used in a handful of legacy
-     rules; pointing them at warm hues keeps stray usages coherent. */
-  --cyan:#C08A4E;       /* brass   */
-  --indigo:#8A5A3C;     /* clay    */
-  --violet:#A0522D;     /* sienna  */
+  /* Premium gold — champagne → antique → pale highlight */
+  --gold-400:#D4AF37;   /* primary gold accent                   */
+  --gold-500:#C8A45D;   /* metal gold                            */
+  --gold-600:#a8842f;   /* deep gold (text on light)             */
+  --gold-pale:#F7E7A1;  /* pale highlight / sheen                */
+  --copper:#C8A45D;
 
-  /* Status — warm-tuned, still unambiguous */
-  --ok-500:#3D7A57; --ok-100:#E4F0E7;
-  --warn-500:#AE7F1E; --warn-100:#F8EEDA;
-  --bad-500:#AF3A2E; --bad-100:#F9E6E2;
-  --info-500:#8A5A3C; --info-100:#F4EBE2;
+  /* Electric accents — cyan + indigo + violet (the "tech" half) */
+  --cyan:#00D4FF;
+  --indigo:#4F46E5;
+  --violet:#7C3AED;
 
-  /* Paper surfaces */
-  --surface:#FFFDF9; --surface-2:#F7F3EB; --surface-3:#EFE9DE;
-  --line:#E7DDCD; --line-strong:#D4C7B3;
+  /* Status (kept legible, no bright-red dominance) */
+  --ok-500:#1e8a5f; --ok-100:#e3f6ec;
+  --warn-500:#C8A45D; --warn-100:#fbf2dc;
+  --bad-500:#c4453a; --bad-100:#fbe9e7;
+  --info-500:#3b54c4; --info-100:#eaecfb;
+
+  /* Light surfaces (app body stays crisp & readable) */
+  --surface:#ffffff; --surface-2:#f4f6fb; --surface-3:#eaeef6;
+  --line:#e2e7f0; --line-strong:#cdd5e6;
 
   --radius-sm:7px; --radius-md:12px; --radius-lg:18px;
 
-  /* Elevation — shadows tinted warm, so they read as paper shadow */
-  --shadow-sm:0 1px 2px rgba(36,31,27,.05), 0 1px 1px rgba(36,31,27,.04);
-  --shadow-md:0 6px 20px rgba(36,31,27,.09), 0 2px 6px rgba(36,31,27,.05);
-  --shadow-lg:0 18px 48px rgba(36,31,27,.16), 0 4px 12px rgba(36,31,27,.08);
-  --shadow-gold:0 4px 16px rgba(180,99,58,.28);
-  --glow-cyan:0 0 0 1px rgba(180,99,58,.22), 0 6px 20px rgba(180,99,58,.14);
-  --glow-gold:0 0 20px rgba(180,99,58,.26);
+  /* Elevation + signature glows */
+  --shadow-sm:0 1px 2px rgba(13,22,40,.06), 0 1px 1px rgba(13,22,40,.04);
+  --shadow-md:0 6px 20px rgba(13,22,40,.10), 0 2px 6px rgba(13,22,40,.06);
+  --shadow-lg:0 18px 48px rgba(7,17,31,.20), 0 4px 12px rgba(7,17,31,.10);
+  --shadow-gold:0 6px 22px rgba(212,175,55,.34);
+  --glow-cyan:0 0 0 1px rgba(0,212,255,.25), 0 8px 30px rgba(0,212,255,.18);
+  --glow-gold:0 0 28px rgba(212,175,55,.35);
 
-  /* Gradients — shallow and warm. No aurora, no chrome sheen. */
-  --grad-chrome:linear-gradient(135deg,#211C18 0%,#2C2520 60%,#211C18 100%);
-  --grad-indigo:linear-gradient(135deg,#2C2520 0%,#4A3E34 100%);
-  --grad-cyan:linear-gradient(120deg,#2C2520 0%,#6F4A32 100%);
-  --grad-gold:linear-gradient(135deg,var(--gold-400),var(--gold-500));
-  --grad-aurora:none;
+  /* Signature gradients */
+  --grad-chrome:linear-gradient(135deg,#0D1628 0%,#101826 55%,#0b1730 100%);
+  --grad-indigo:linear-gradient(135deg,#0D1628 0%,#1b2150 60%,#4F46E5 160%);
+  --grad-cyan:linear-gradient(120deg,#0D1628 0%,#103a52 70%,#00D4FF 180%);
+  --grad-gold:linear-gradient(135deg,var(--gold-pale),var(--gold-400) 45%,var(--gold-500));
+  --grad-aurora:radial-gradient(60% 80% at 18% 12%, rgba(79,70,229,.55), transparent 60%),
+                radial-gradient(55% 70% at 85% 22%, rgba(0,212,255,.42), transparent 62%),
+                radial-gradient(70% 90% at 60% 100%, rgba(124,58,237,.40), transparent 60%),
+                radial-gradient(40% 60% at 95% 85%, rgba(212,175,55,.30), transparent 60%);
 
-  --glass-bg:rgba(255,253,249,.86);
-  --glass-brd:rgba(255,255,255,.6);
-  --glass-dark:rgba(33,28,24,.6);
+  /* Glass */
+  --glass-bg:rgba(255,255,255,.72);
+  --glass-brd:rgba(255,255,255,.55);
+  --glass-dark:rgba(13,22,40,.55);
 
-  --ease:cubic-bezier(.2,.7,.3,1);
+  --ease:cubic-bezier(.22,.9,.32,1);
   --ease-out:cubic-bezier(.16,1,.3,1);
-  --ease-spring:cubic-bezier(.34,1.4,.64,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
   --dur-fast:120ms; --dur:220ms; --dur-slow:380ms;
 
-  /* Type. These four families are the ones index.html already loads, so no
-     <head> change is needed. Roles are reassigned: the geometric faces (Sora,
-     Space Grotesk) no longer carry headings — Plus Jakarta Sans does, which
-     is the warmest of the four. To go further, swap the Google Fonts link in
-     index.html for IBM Plex Serif/Sans/Mono and only these four lines change. */
-  --font-display:'Plus Jakarta Sans','Inter',ui-sans-serif,system-ui,sans-serif;
-  --font-heading:'Plus Jakarta Sans','Inter',ui-sans-serif,system-ui,sans-serif;
+  --font-display:'Sora',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --font-heading:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;
   --font-body:'Plus Jakarta Sans','Inter',ui-sans-serif,system-ui,-apple-system,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Consolas,monospace;
 }
@@ -124,8 +113,8 @@ button{font-family:inherit}
 .topbar-spacer{flex:1; min-width:8px}
 .role-chip{
   font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
-  padding:3px 9px; border-radius:99px; background:rgba(180,99,58,.16); color:var(--gold-400);
-  border:1px solid rgba(180,99,58,.35);
+  padding:3px 9px; border-radius:99px; background:rgba(232,184,75,.16); color:var(--gold-400);
+  border:1px solid rgba(232,184,75,.35);
 }
 .user-pill{
   display:flex; align-items:center; gap:8px; padding:5px 8px 5px 5px; border-radius:99px;
@@ -153,7 +142,7 @@ button{font-family:inherit}
 }
 .nav-item .ic{width:18px; text-align:center; flex:none; font-size:15px}
 .nav-item:hover{background:rgba(255,255,255,.06); color:#fff}
-.nav-item.active{background:linear-gradient(90deg,rgba(180,99,58,.18),rgba(180,99,58,.05)); color:var(--gold-400); box-shadow:inset 3px 0 0 var(--gold-400)}
+.nav-item.active{background:linear-gradient(90deg,rgba(232,184,75,.18),rgba(232,184,75,.05)); color:var(--gold-400); box-shadow:inset 3px 0 0 var(--gold-400)}
 .nav-item:active{transform:scale(.98)}
 .nav-divider{height:1px; background:rgba(255,255,255,.08); margin:8px 6px}
 
@@ -192,11 +181,11 @@ button{font-family:inherit}
 .btn-primary{background:var(--navy-900); color:#fff; box-shadow:var(--shadow-sm)}
 .btn-primary:hover{background:var(--navy-800); box-shadow:var(--shadow-md)}
 .btn-gold{background:linear-gradient(135deg,var(--gold-400),var(--gold-500)); color:var(--navy-950); box-shadow:var(--shadow-gold)}
-.btn-gold:hover{filter:brightness(1.05); box-shadow:0 6px 22px rgba(180,99,58,.4)}
+.btn-gold:hover{filter:brightness(1.05); box-shadow:0 6px 22px rgba(201,146,42,.4)}
 .btn-ghost{background:transparent; color:var(--navy-800); border-color:var(--line-strong)}
 .btn-ghost:hover{background:var(--surface-3); border-color:var(--steel-400)}
 .btn-danger{background:var(--bad-100); color:var(--bad-500); border-color:transparent}
-.btn-danger:hover{background:#F5DCD6}
+.btn-danger:hover{background:#f8d9d6}
 .btn-sm{padding:6px 10px; font-size:12px; border-radius:7px}
 .btn-xs{padding:3px 7px; font-size:10.5px; border-radius:5px}
 .btn-icon{padding:8px; width:34px; height:34px}
@@ -209,7 +198,7 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
   font-family:var(--font-body); font-size:13.5px; background:var(--surface); color:var(--ink);
   transition:border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-input:focus,select:focus,textarea:focus{outline:none; border-color:var(--navy-700); box-shadow:0 0 0 3px rgba(180,99,58,.15)}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--navy-700); box-shadow:0 0 0 3px rgba(28,54,102,.12)}
 input:disabled,select:disabled,textarea:disabled{background:var(--surface-3); color:var(--steel-600); cursor:not-allowed}
 textarea{resize:vertical; min-height:64px}
 .field{margin-bottom:13px}
@@ -324,20 +313,20 @@ tbody tr:last-child td{border-bottom:none}
 .sr-row .sr-no{font-family:var(--font-mono); font-weight:700; color:var(--steel-600); font-size:12px}
 .sr-row .sr-label{font-size:13.5px; font-weight:600}
 .sr-row .sr-val{font-family:var(--font-mono); text-align:right; font-weight:700; font-variant-numeric:tabular-nums}
-.sr-row.subtotal{background:linear-gradient(90deg,#F7F3EB,#FBF7F0)}
+.sr-row.subtotal{background:linear-gradient(90deg,#EFF4FF,#F5F8FF)}
 .sr-row.subtotal .sr-label, .sr-row.subtotal .sr-val{color:var(--navy-800); font-weight:800}
 .sr-row.final{background:linear-gradient(135deg,var(--navy-900),var(--navy-800)); border-radius:8px; border-bottom:none; padding:14px 16px}
 .sr-row.final .sr-no, .sr-row.final .sr-label{color:#fff; font-weight:800; font-size:14.5px}
 .sr-row.final .sr-val{color:var(--gold-400); font-size:17px; font-weight:800}
 .awords-box{
-  background:linear-gradient(135deg,#F9F1E6,#FBF5EA); border:1.5px solid #D9B98E; border-radius:var(--radius-md);
+  background:linear-gradient(135deg,#FDF3E0,#FFF3D0); border:1.5px solid #E8C97A; border-radius:var(--radius-md);
   padding:14px 18px; font-weight:700; color:var(--gold-600); margin-top:14px; font-size:13px; line-height:1.7;
-  box-shadow:0 2px 8px rgba(180,99,58,.1);
+  box-shadow:0 2px 8px rgba(201,146,42,.1);
 }
 
 /* ── Modal ── */
 .modal-backdrop{
-  position:fixed; inset:0; background:rgba(33,28,24,.55); backdrop-filter:blur(2px);
+  position:fixed; inset:0; background:rgba(10,22,40,.55); backdrop-filter:blur(2px);
   display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
   animation:fadeIn var(--dur) var(--ease);
 }
@@ -411,8 +400,8 @@ tbody tr:last-child td{border-bottom:none}
   display:flex; align-items:center; gap:9px; padding:11px 16px; border-radius:var(--radius-md);
   font-size:12.5px; font-weight:600; margin-bottom:16px;
 }
-.aic-mode-ai{background:var(--info-100); color:var(--info-500); border:1px solid #E0CBB6}
-.aic-mode-free{background:var(--warn-100); color:var(--gold-600); border:1px solid #D9B98E}
+.aic-mode-ai{background:var(--info-100); color:var(--info-500); border:1px solid #b8d4f0}
+.aic-mode-free{background:var(--warn-100); color:var(--gold-600); border:1px solid #e8c97a}
 .aic-chat{
   display:flex; flex-direction:column; gap:10px; min-height:140px; max-height:340px; overflow-y:auto;
   padding:14px; background:var(--surface-2); border-radius:var(--radius-md); margin-bottom:14px;
@@ -456,7 +445,7 @@ tbody tr:last-child td{border-bottom:none}
    scannable while the pointer moves down it.
    ═══════════════════════════════════════════════════════════════════════ */
 .est-card{
-  --rail:var(--steel-400,#B6AA98);
+  --rail:var(--steel-400,#94a3b8);
   display:flex; align-items:center; gap:14px;
   padding:15px 18px 15px 0; border-radius:var(--radius-md);
   border:1px solid transparent; border-bottom-color:var(--line);
@@ -469,14 +458,14 @@ tbody tr:last-child td{border-bottom:none}
   border-radius:0 3px 3px 0; background:var(--rail); opacity:.45;
   transition:opacity var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-.est-card:hover{ background:var(--surface-2,#F7F3EB); border-color:var(--line); }
+.est-card:hover{ background:var(--surface-2,#f4f6fa); border-color:var(--line); }
 .est-card:hover::before{ opacity:1; box-shadow:0 0 8px -1px var(--rail); }
-.est-card:focus-visible{ outline:2px solid var(--gold-500,#B4633A); outline-offset:2px; }
+.est-card:focus-visible{ outline:2px solid var(--gold-500,#b8860b); outline-offset:2px; }
 
 /* work-type colour coding, carried by the rail and the icon tile */
-.est-card[data-type="project"]{ --rail:#8A5A3C; }
-.est-card[data-type="rm"]     { --rail:#3D7A57; }
-.est-card[data-type="amc"]    { --rail:#B4633A; }
+.est-card[data-type="project"]{ --rail:#4f46e5; }
+.est-card[data-type="rm"]     { --rail:#0d9488; }
+.est-card[data-type="amc"]    { --rail:#b8860b; }
 
 /* insulator node — the serial sits on the rail */
 .est-card .est-sno{
@@ -492,7 +481,7 @@ tbody tr:last-child td{border-bottom:none}
 }
 .est-card .est-main{flex:1; min-width:0}
 .est-card .est-name{
-  font-weight:600; font-size:14px; letter-spacing:-.005em; color:var(--ink,#241F1B);
+  font-weight:600; font-size:14px; letter-spacing:-.005em; color:var(--ink,#1f2937);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 /* meta reads as an equipment label: uppercase, tracked, quiet */
@@ -506,7 +495,7 @@ tbody tr:last-child td{border-bottom:none}
 /* terminal reading */
 .est-card .est-total{
   font-family:var(--font-mono); font-weight:700; font-size:15px; text-align:right;
-  white-space:nowrap; color:var(--navy-900,#241F1B); font-variant-numeric:tabular-nums;
+  white-space:nowrap; color:var(--navy-900,#1c2536); font-variant-numeric:tabular-nums;
 }
 .est-card .est-actions{display:flex; gap:4px; flex:none; opacity:.45; transition:opacity var(--dur) var(--ease)}
 .est-card:hover .est-actions, .est-card:focus-within .est-actions{opacity:1}
@@ -533,7 +522,7 @@ tbody tr:last-child td{border-bottom:none}
 }
 .stat-card::before{
   content:''; position:absolute; top:0; right:0; width:64px; height:64px; border-radius:50%;
-  background:radial-gradient(circle,rgba(180,99,58,.14),transparent 70%); transform:translate(20px,-20px);
+  background:radial-gradient(circle,rgba(232,184,75,.14),transparent 70%); transform:translate(20px,-20px);
 }
 .stat-ic{font-size:20px; margin-bottom:4px}
 .stat-val{font-family:var(--font-display); font-weight:800; font-size:21px; color:var(--navy-900); line-height:1.15}
@@ -575,11 +564,11 @@ tbody tr:last-child td{border-bottom:none}
 .img-tile .img-cap{font-size:11px; padding:5px 7px; color:var(--steel-700); background:var(--surface)}
 .img-tile .img-actions{position:absolute; top:5px; right:5px; display:flex; gap:4px; opacity:0; transition:opacity var(--dur) var(--ease)}
 .img-tile:hover .img-actions{opacity:1}
-.img-actions button{width:24px; height:24px; border-radius:6px; border:none; background:rgba(33,28,24,.72); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px}
-.img-actions button:hover{background:rgba(33,28,24,.92)}
+.img-actions button{width:24px; height:24px; border-radius:6px; border:none; background:rgba(10,22,40,.7); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px}
+.img-actions button:hover{background:rgba(10,22,40,.9)}
 
 /* lightbox */
-.lightbox{position:fixed; inset:0; background:rgba(28,23,19,.92); z-index:300; display:flex; align-items:center; justify-content:center; padding:30px; animation:fadeIn var(--dur) var(--ease)}
+.lightbox{position:fixed; inset:0; background:rgba(5,10,20,.9); z-index:300; display:flex; align-items:center; justify-content:center; padding:30px; animation:fadeIn var(--dur) var(--ease)}
 .lightbox img{max-width:92vw; max-height:88vh; border-radius:8px; box-shadow:var(--shadow-lg)}
 .lightbox-close{position:absolute; top:18px; right:24px; background:rgba(255,255,255,.12); color:#fff; border:none; width:38px; height:38px; border-radius:50%; cursor:pointer; font-size:18px}
 
@@ -611,7 +600,7 @@ tbody tr:last-child td{border-bottom:none}
     transition:background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
   }
   .mnav-item .ic{font-size:15px}
-  .mnav-item.active{background:rgba(180,99,58,.16); color:var(--gold-400)}
+  .mnav-item.active{background:rgba(232,184,75,.16); color:var(--gold-400)}
   .main{padding:16px 14px 90px}
   .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
   .page-title{font-size:18px}
@@ -686,353 +675,463 @@ tbody tr:last-child td{border-bottom:none}
 .auth-logo p{font-size:12px; color:var(--steel-600); margin:2px 0 0}
 
 /* ════════════════════════════════════════════════════════════════════════
-   ✦ WARM LAYER ✦
-   Replaces the old "luxe" + "maximalist" layers. Same hooks, same class
-   names, no render-code changes.
-
-   What was removed and why:
-     · drifting orbs, conic light beams, film grain, custom cursor glow,
-       aurora mesh, particle canvas, looping gradient sweeps — all of it ran
-       forever, none of it responded to anything the user or the data did.
-     · gold-on-navy chrome, glassmorphism, gradient-clipped text.
-
-   What was kept:
-     · the transmission-tower line-work, on the sign-in screen and along the
-       foot of every app page. It is now the only piece of atmosphere, so it
-       gets to be the thing you notice.
-     · the floral embroidery on home cards (defined further down, unchanged).
-
-   Motion rule: nothing loops. Every animation is triggered by a render, a
-   hover, or a state change, runs once, and stops.
+   ✦ LUXE LAYER ✦  — premium motion, glassmorphism & a cinematic dark entry.
+   Hooks onto existing class names; no render-code changes required.
+   Everything below is GPU-accelerated (transform/opacity/filter) and fully
+   gated behind prefers-reduced-motion.
    ════════════════════════════════════════════════════════════════════════ */
 
-:root{
-  /* Transmission-tower skyline — same geometry as before, re-inked in copper
-     so it belongs to the warm palette instead of fighting it. */
-  --art-skyline:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201600%20320%22%20preserveAspectRatio%3D%22xMidYMax%20meet%22%3E%3Cpath%20d%3D%22M58.45%20146.7%20Q204.715%20189.49%20350.98%20180.28%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M76.30000000000001%20146.7%20Q220.61%20189.49%20364.92%20180.28%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M112.0%20146.7%20Q252.4%20189.49%20392.8%20180.28%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M129.85000000000002%20146.7%20Q268.295%20189.49%20406.74%20180.28%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M350.98%20180.28%20Q479.0%20180.0%20607.02%20127.72000000000001%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M364.92%20180.28%20Q496.0%20180.0%20627.08%20127.72000000000001%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M392.8%20180.28%20Q530.0%20180.0%20667.1999999999999%20127.72000000000001%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M406.74%20180.28%20Q547.0%20180.0%20687.26%20127.72000000000001%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M607.02%20127.72000000000001%20Q789.22%20182.92%20971.4200000000001%20186.11999999999998%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M627.08%20127.72000000000001%20Q805.8800000000001%20182.92%20984.6800000000001%20186.11999999999998%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M667.1999999999999%20127.72000000000001%20Q839.2%20182.92%201011.2%20186.11999999999998%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M687.26%20127.72000000000001%20Q855.86%20182.92%201024.46%20186.11999999999998%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M971.4200000000001%20186.11999999999998%20Q1100.21%20196.06%201229.0%20154.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M984.6800000000001%20186.11999999999998%20Q1115.3400000000001%20196.06%201246.0%20154.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1011.2%20186.11999999999998%20Q1145.6%20196.06%201280.0%20154.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1024.46%20186.11999999999998%20Q1160.73%20196.06%201297.0%20154.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1229.0%20154.0%20Q1359.5500000000002%20187.3%201490.1000000000001%20168.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1246.0%20154.0%20Q1375.7%20187.3%201505.4%20168.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1280.0%20154.0%20Q1408.0%20187.3%201536.0%20168.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1297.0%20154.0%20Q1424.15%20187.3%201551.3%20168.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M70%20300%20L87.85000000000001%20132.0%20M118.30000000000001%20300%20L100.45%20132.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.47%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%2272.553%22%20y1%3D%22276.0%22%20x2%3D%22115.74700000000001%22%20y2%3D%22276.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2275.10600000000001%22%20y1%3D%22252.0%22%20x2%3D%22113.19400000000002%22%20y2%3D%22252.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2277.659%22%20y1%3D%22228.0%22%20x2%3D%22110.641%22%20y2%3D%22228.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2280.212%22%20y1%3D%22204.0%22%20x2%3D%22108.08800000000001%22%20y2%3D%22204.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2282.765%22%20y1%3D%22180.0%22%20x2%3D%22105.535%22%20y2%3D%22180.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2285.318%22%20y1%3D%22156.0%22%20x2%3D%22102.982%22%20y2%3D%22156.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.05%22%2F%3E%3Cpath%20d%3D%22M70.0%20300.0%20L115.74700000000001%20276.0%20M118.30000000000001%20300.0%20L72.553%20276.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M72.553%20276.0%20L113.19400000000002%20252.0%20M115.74700000000001%20276.0%20L75.10600000000001%20252.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M75.10600000000001%20252.0%20L110.641%20228.0%20M113.19400000000002%20252.0%20L77.659%20228.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M77.659%20228.0%20L108.08800000000001%20204.0%20M110.641%20228.0%20L80.212%20204.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M80.212%20204.0%20L105.535%20180.0%20M108.08800000000001%20204.0%20L82.765%20180.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M82.765%20180.0%20L102.982%20156.0%20M105.535%20180.0%20L85.318%20156.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.735%22%2F%3E%3Cline%20x1%3D%2258.45%22%20y1%3D%22146.7%22%20x2%3D%22129.85000000000002%22%20y2%3D%22146.7%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.26%22%2F%3E%3Ccircle%20cx%3D%2258.45%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%2276.30000000000001%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22112.0%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22129.85000000000002%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%2264.75%22%20y1%3D%22167.7%22%20x2%3D%22123.55000000000001%22%20y2%3D%22167.7%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.26%22%2F%3E%3Ccircle%20cx%3D%2264.75%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%2279.45%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22108.85000000000001%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22123.55000000000001%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M94.15%20132.0%20l-7.3500000000000005%2012.600000000000001%20l14.700000000000001%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M360%20300%20L373.94%20168.8%20M397.72%20300%20L383.78000000000003%20168.8%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.148%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22361.99377142857145%22%20y1%3D%22281.25714285714287%22%20x2%3D%22395.7262285714286%22%20y2%3D%22281.25714285714287%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22363.9875428571429%22%20y1%3D%22262.51428571428573%22%20x2%3D%22393.7324571428572%22%20y2%3D%22262.51428571428573%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22365.9813142857143%22%20y1%3D%22243.77142857142857%22%20x2%3D%22391.73868571428574%22%20y2%3D%22243.77142857142857%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22367.97508571428574%22%20y1%3D%22225.02857142857144%22%20x2%3D%22389.7449142857143%22%20y2%3D%22225.02857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22369.96885714285713%22%20y1%3D%22206.28571428571428%22%20x2%3D%22387.75114285714284%22%20y2%3D%22206.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22371.9626285714286%22%20y1%3D%22187.54285714285714%22%20x2%3D%22385.75737142857145%22%20y2%3D%22187.54285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.82%22%2F%3E%3Cpath%20d%3D%22M360.0%20300.0%20L395.7262285714286%20281.25714285714287%20M397.72%20300.0%20L361.99377142857145%20281.25714285714287%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M361.99377142857145%20281.25714285714287%20L393.7324571428572%20262.51428571428573%20M395.7262285714286%20281.25714285714287%20L363.9875428571429%20262.51428571428573%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M363.9875428571429%20262.51428571428573%20L391.73868571428574%20243.77142857142857%20M393.7324571428572%20262.51428571428573%20L365.9813142857143%20243.77142857142857%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M365.9813142857143%20243.77142857142857%20L389.7449142857143%20225.02857142857144%20M391.73868571428574%20243.77142857142857%20L367.97508571428574%20225.02857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M367.97508571428574%20225.02857142857144%20L387.75114285714284%20206.28571428571428%20M389.7449142857143%20225.02857142857144%20L369.96885714285713%20206.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M369.96885714285713%20206.28571428571428%20L385.75737142857145%20187.54285714285714%20M387.75114285714284%20206.28571428571428%20L371.9626285714286%20187.54285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.574%22%2F%3E%3Cline%20x1%3D%22350.98%22%20y1%3D%22180.28%22%20x2%3D%22406.74%22%20y2%3D%22180.28%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9839999999999999%22%2F%3E%3Ccircle%20cx%3D%22350.98%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22364.92%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22392.8%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22406.74%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%22355.90000000000003%22%20y1%3D%22196.68%22%20x2%3D%22401.82%22%20y2%3D%22196.68%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9839999999999999%22%2F%3E%3Ccircle%20cx%3D%22355.90000000000003%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22367.38%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22390.34000000000003%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22401.82%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M378.86%20168.8%20l-5.739999999999999%209.84%20l11.479999999999999%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M620%20300%20L640.06%20111.20000000000002%20M674.28%20300%20L654.22%20111.20000000000002%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.652%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22622.8690857142857%22%20y1%3D%22273.0285714285714%22%20x2%3D%22671.4109142857143%22%20y2%3D%22273.0285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22625.7381714285714%22%20y1%3D%22246.05714285714288%22%20x2%3D%22668.5418285714285%22%20y2%3D%22246.05714285714288%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22628.6072571428572%22%20y1%3D%22219.0857142857143%22%20x2%3D%22665.6727428571429%22%20y2%3D%22219.0857142857143%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22631.4763428571429%22%20y1%3D%22192.11428571428573%22%20x2%3D%22662.8036571428571%22%20y2%3D%22192.11428571428573%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22634.3454285714286%22%20y1%3D%22165.14285714285717%22%20x2%3D%22659.9345714285714%22%20y2%3D%22165.14285714285717%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22637.2145142857142%22%20y1%3D%22138.17142857142858%22%20x2%3D%22657.0654857142857%22%20y2%3D%22138.17142857142858%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.18%22%2F%3E%3Cpath%20d%3D%22M620.0%20300.0%20L671.4109142857143%20273.0285714285714%20M674.28%20300.0%20L622.8690857142857%20273.0285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M622.8690857142857%20273.0285714285714%20L668.5418285714285%20246.05714285714288%20M671.4109142857143%20273.0285714285714%20L625.7381714285714%20246.05714285714288%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M625.7381714285714%20246.05714285714288%20L665.6727428571429%20219.0857142857143%20M668.5418285714285%20246.05714285714288%20L628.6072571428572%20219.0857142857143%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M628.6072571428572%20219.0857142857143%20L662.8036571428571%20192.11428571428573%20M665.6727428571429%20219.0857142857143%20L631.4763428571429%20192.11428571428573%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M631.4763428571429%20192.11428571428573%20L659.9345714285714%20165.14285714285717%20M662.8036571428571%20192.11428571428573%20L634.3454285714286%20165.14285714285717%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M634.3454285714286%20165.14285714285717%20L657.0654857142857%20138.17142857142858%20M659.9345714285714%20165.14285714285717%20L637.2145142857142%20138.17142857142858%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.826%22%2F%3E%3Cline%20x1%3D%22607.02%22%20y1%3D%22127.72000000000001%22%20x2%3D%22687.26%22%20y2%3D%22127.72000000000001%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.416%22%2F%3E%3Ccircle%20cx%3D%22607.02%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22627.08%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22667.1999999999999%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22687.26%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%22614.1%22%20y1%3D%22151.32000000000002%22%20x2%3D%22680.18%22%20y2%3D%22151.32000000000002%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.416%22%2F%3E%3Ccircle%20cx%3D%22614.1%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22630.62%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22663.66%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22680.18%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M647.14%20111.20000000000002%20l-8.26%2014.16%20l16.52%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M980%20300%20L993.2600000000001%20175.2%20M1015.88%20300%20L1002.62%20175.2%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0919999999999999%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22981.8965142857144%22%20y1%3D%22282.1714285714286%22%20x2%3D%221013.9834857142858%22%20y2%3D%22282.1714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22983.7930285714286%22%20y1%3D%22264.34285714285716%22%20x2%3D%221012.0869714285715%22%20y2%3D%22264.34285714285716%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22985.6895428571429%22%20y1%3D%22246.5142857142857%22%20x2%3D%221010.1904571428572%22%20y2%3D%22246.5142857142857%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22987.5860571428572%22%20y1%3D%22228.68571428571428%22%20x2%3D%221008.2939428571428%22%20y2%3D%22228.68571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22989.4825714285715%22%20y1%3D%22210.85714285714286%22%20x2%3D%221006.3974285714287%22%20y2%3D%22210.85714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22991.3790857142858%22%20y1%3D%22193.0285714285714%22%20x2%3D%221004.5009142857143%22%20y2%3D%22193.0285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.78%22%2F%3E%3Cpath%20d%3D%22M980.0%20300.0%20L1013.9834857142858%20282.1714285714286%20M1015.88%20300.0%20L981.8965142857144%20282.1714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M981.8965142857144%20282.1714285714286%20L1012.0869714285715%20264.34285714285716%20M1013.9834857142858%20282.1714285714286%20L983.7930285714286%20264.34285714285716%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M983.7930285714286%20264.34285714285716%20L1010.1904571428572%20246.5142857142857%20M1012.0869714285715%20264.34285714285716%20L985.6895428571429%20246.5142857142857%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M985.6895428571429%20246.5142857142857%20L1008.2939428571428%20228.68571428571428%20M1010.1904571428572%20246.5142857142857%20L987.5860571428572%20228.68571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M987.5860571428572%20228.68571428571428%20L1006.3974285714287%20210.85714285714286%20M1008.2939428571428%20228.68571428571428%20L989.4825714285715%20210.85714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M989.4825714285715%20210.85714285714286%20L1004.5009142857143%20193.0285714285714%20M1006.3974285714287%20210.85714285714286%20L991.3790857142858%20193.0285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cline%20x1%3D%22971.4200000000001%22%20y1%3D%22186.11999999999998%22%20x2%3D%221024.46%22%20y2%3D%22186.11999999999998%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9359999999999999%22%2F%3E%3Ccircle%20cx%3D%22971.4200000000001%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22984.6800000000001%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221011.2%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221024.46%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%22976.1%22%20y1%3D%22201.72%22%20x2%3D%221019.7800000000001%22%20y2%3D%22201.72%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9359999999999999%22%2F%3E%3Ccircle%20cx%3D%22976.1%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%22987.0200000000001%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221008.86%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221019.7800000000001%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M997.94%20175.2%20l-5.46%209.36%20l10.92%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M1240%20300%20L1257.0%20140.0%20M1286.0%20300%20L1269.0%20140.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.4%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%221242.4314285714286%22%20y1%3D%22277.14285714285717%22%20x2%3D%221283.5685714285714%22%20y2%3D%22277.14285714285717%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221244.8628571428571%22%20y1%3D%22254.28571428571428%22%20x2%3D%221281.1371428571429%22%20y2%3D%22254.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221247.2942857142857%22%20y1%3D%22231.42857142857144%22%20x2%3D%221278.7057142857143%22%20y2%3D%22231.42857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221249.7257142857143%22%20y1%3D%22208.57142857142856%22%20x2%3D%221276.2742857142857%22%20y2%3D%22208.57142857142856%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221252.1571428571428%22%20y1%3D%22185.71428571428572%22%20x2%3D%221273.8428571428572%22%20y2%3D%22185.71428571428572%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221254.5885714285714%22%20y1%3D%22162.85714285714286%22%20x2%3D%221271.4114285714286%22%20y2%3D%22162.85714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.0%22%2F%3E%3Cpath%20d%3D%22M1240.0%20300.0%20L1283.5685714285714%20277.14285714285717%20M1286.0%20300.0%20L1242.4314285714286%20277.14285714285717%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1242.4314285714286%20277.14285714285717%20L1281.1371428571429%20254.28571428571428%20M1283.5685714285714%20277.14285714285717%20L1244.8628571428571%20254.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1244.8628571428571%20254.28571428571428%20L1278.7057142857143%20231.42857142857144%20M1281.1371428571429%20254.28571428571428%20L1247.2942857142857%20231.42857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1247.2942857142857%20231.42857142857144%20L1276.2742857142857%20208.57142857142856%20M1278.7057142857143%20231.42857142857144%20L1249.7257142857143%20208.57142857142856%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1249.7257142857143%20208.57142857142856%20L1273.8428571428572%20185.71428571428572%20M1276.2742857142857%20208.57142857142856%20L1252.1571428571428%20185.71428571428572%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1252.1571428571428%20185.71428571428572%20L1271.4114285714286%20162.85714285714286%20M1273.8428571428572%20185.71428571428572%20L1254.5885714285714%20162.85714285714286%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.7%22%2F%3E%3Cline%20x1%3D%221229.0%22%20y1%3D%22154.0%22%20x2%3D%221297.0%22%20y2%3D%22154.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.2%22%2F%3E%3Ccircle%20cx%3D%221229.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221246.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221280.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221297.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%221235.0%22%20y1%3D%22174.0%22%20x2%3D%221291.0%22%20y2%3D%22174.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.2%22%2F%3E%3Ccircle%20cx%3D%221235.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221249.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221277.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221291.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M1263.0%20140.0%20l-7.0%2012.0%20l14.0%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M1500%20300%20L1515.3%20156.0%20M1541.4%20300%20L1526.1000000000001%20156.0%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.26%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%221502.1882857142857%22%20y1%3D%22279.42857142857144%22%20x2%3D%221539.2117142857144%22%20y2%3D%22279.42857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221504.3765714285714%22%20y1%3D%22258.85714285714283%22%20x2%3D%221537.0234285714287%22%20y2%3D%22258.85714285714283%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221506.5648571428571%22%20y1%3D%22238.28571428571428%22%20x2%3D%221534.835142857143%22%20y2%3D%22238.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221508.7531428571428%22%20y1%3D%22217.71428571428572%22%20x2%3D%221532.6468571428572%22%20y2%3D%22217.71428571428572%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221510.9414285714286%22%20y1%3D%22197.14285714285714%22%20x2%3D%221530.4585714285713%22%20y2%3D%22197.14285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221513.1297142857143%22%20y1%3D%22176.57142857142856%22%20x2%3D%221528.2702857142856%22%20y2%3D%22176.57142857142856%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.9%22%2F%3E%3Cpath%20d%3D%22M1500.0%20300.0%20L1539.2117142857144%20279.42857142857144%20M1541.4%20300.0%20L1502.1882857142857%20279.42857142857144%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1502.1882857142857%20279.42857142857144%20L1537.0234285714287%20258.85714285714283%20M1539.2117142857144%20279.42857142857144%20L1504.3765714285714%20258.85714285714283%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1504.3765714285714%20258.85714285714283%20L1534.835142857143%20238.28571428571428%20M1537.0234285714287%20258.85714285714283%20L1506.5648571428571%20238.28571428571428%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1506.5648571428571%20238.28571428571428%20L1532.6468571428572%20217.71428571428572%20M1534.835142857143%20238.28571428571428%20L1508.7531428571428%20217.71428571428572%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1508.7531428571428%20217.71428571428572%20L1530.4585714285713%20197.14285714285714%20M1532.6468571428572%20217.71428571428572%20L1510.9414285714286%20197.14285714285714%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1510.9414285714286%20197.14285714285714%20L1528.2702857142856%20176.57142857142856%20M1530.4585714285713%20197.14285714285714%20L1513.1297142857143%20176.57142857142856%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%220.63%22%2F%3E%3Cline%20x1%3D%221490.1000000000001%22%20y1%3D%22168.6%22%20x2%3D%221551.3%22%20y2%3D%22168.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.08%22%2F%3E%3Ccircle%20cx%3D%221490.1000000000001%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221505.4%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221536.0%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221551.3%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cline%20x1%3D%221495.5%22%20y1%3D%22186.6%22%20x2%3D%221545.9%22%20y2%3D%22186.6%22%20stroke%3D%22%238A4A2A%22%20stroke-width%3D%221.08%22%2F%3E%3Ccircle%20cx%3D%221495.5%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221508.1000000000001%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221533.3%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Ccircle%20cx%3D%221545.9%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%238A4A2A%22%2F%3E%3Cpath%20d%3D%22M1520.7%20156.0%20l-6.3%2010.8%20l12.6%200%20z%22%20fill%3D%22%238A4A2A%22%2F%3E%3C%2Fsvg%3E");
+/* ── Typography polish ─────────────────────────────────────────────────── */
+body{font-family:var(--font-body); letter-spacing:.005em}
+h1,h2,h3,h4{font-family:var(--font-display); letter-spacing:-.02em}
+.page-title{font-family:var(--font-heading); letter-spacing:-.025em}
+.lux-gradient-text{
+  background:linear-gradient(100deg,#fff 0%,#cfe0ff 30%,var(--cyan) 60%,var(--gold-pale) 100%);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent;
+}
+/* fallback: if the browser can't clip background to text, show solid colour */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .lux-gradient-text{-webkit-text-fill-color:currentColor; color:#fff}
+  .stat-val{-webkit-text-fill-color:currentColor; color:var(--navy-900)}
 }
 
-/* ── Typography ─────────────────────────────────────────────────────────── */
-body{font-family:var(--font-body); letter-spacing:.002em}
-h1,h2,h3,h4{font-family:var(--font-display); letter-spacing:-.015em; color:var(--ink)}
-.page-title{font-family:var(--font-display); letter-spacing:-.02em; color:var(--ink)}
-/* legacy hook — no longer gradient-filled, just the accent */
-.lux-gradient-text{color:var(--gold-600); -webkit-text-fill-color:currentColor}
+/* refined scrollbar tinted to the accent system */
+::-webkit-scrollbar-thumb{background:linear-gradient(var(--steel-300),var(--steel-400)); border:2px solid var(--surface-2)}
+::-webkit-scrollbar-thumb:hover{background:linear-gradient(var(--indigo),var(--violet))}
+::selection{background:var(--gold-400); color:var(--navy-950)}
 
-::selection{background:var(--gold-pale); color:var(--gold-600)}
-::-webkit-scrollbar-thumb{background:var(--line-strong); border:2px solid var(--surface-2); border-radius:99px}
-::-webkit-scrollbar-thumb:hover{background:var(--steel-400)}
-
-/* ── App background: warm paper, towers along the horizon ───────────────── */
-#lux-app-bg{
-  position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
-  background:linear-gradient(180deg,#FBF7F0 0%,#F7F3EB 55%,#F3EDE2 100%);
-}
-#lux-app-bg::after{
-  content:''; position:absolute; left:0; right:0; bottom:0; height:32vh; max-height:320px;
-  background:var(--art-skyline) bottom center / cover no-repeat; opacity:.13;
-  -webkit-mask:linear-gradient(180deg,transparent,#000 72%);
-          mask:linear-gradient(180deg,transparent,#000 72%);
-}
-#app{position:relative; z-index:1}
-.shell,.main{background:transparent}
-
-/* ── Retired ornament. These elements are still injected by the existing
-      script; hiding them here is what keeps this a CSS-only change. ─────── */
-#lux-app-bg .lux-orb,
-.lux-beams,
-.lux-hero-orbs,
-.lux-circuit-net,
-.lux-sweep,
-#lux-particles,
-#lux-cursor{display:none !important}
-body.lux-cursor-on{cursor:auto}
-
-/* ── Topbar: solid, warm, one copper hairline ───────────────────────────── */
+/* ── Floating glass topbar with backdrop blur ──────────────────────────── */
 .topbar{
-  position:sticky;
-  background:var(--navy-900);
-  background-image:none;
-  border-bottom:1px solid #100D0B;
-  box-shadow:0 1px 0 rgba(255,255,255,.04), 0 4px 18px rgba(23,19,16,.16);
-  transition:box-shadow var(--dur) var(--ease);
+  background:linear-gradient(135deg, rgba(13,22,40,.86), rgba(16,24,38,.78) 60%, rgba(11,23,48,.86));
+  -webkit-backdrop-filter:saturate(160%) blur(14px); backdrop-filter:saturate(160%) blur(14px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  box-shadow:0 6px 28px rgba(7,17,31,.28);
+  transition:box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
 }
-.topbar.is-scrolled{box-shadow:0 1px 0 rgba(255,255,255,.04), 0 8px 26px rgba(23,19,16,.3)}
-.topbar::after{
+.topbar.is-scrolled{box-shadow:0 10px 40px rgba(7,17,31,.45)}
+.topbar::after{ /* hairline gold underglow */
   content:''; position:absolute; left:0; right:0; bottom:-1px; height:1px;
-  background:linear-gradient(90deg,transparent,rgba(180,99,58,.55) 30%,rgba(180,99,58,.55) 70%,transparent);
+  background:linear-gradient(90deg,transparent,rgba(212,175,55,.55),rgba(0,212,255,.4),transparent);
+  opacity:.7;
 }
-.brand .bolt{color:var(--gold-400); filter:none}
-.brand > div > div:first-child{font-family:var(--font-display); letter-spacing:-.012em}
-.role-chip{
-  background:rgba(180,99,58,.16); color:#D8926A; border:1px solid rgba(180,99,58,.4);
-  backdrop-filter:none;
-}
-.avatar{background:linear-gradient(135deg,var(--gold-400),var(--gold-500)); color:#FFF8F3}
+.topbar{position:sticky}
+.brand .bolt{filter:drop-shadow(0 0 8px rgba(212,175,55,.55))}
+.brand > div > div:first-child{font-family:var(--font-heading); letter-spacing:-.01em}
+.role-chip{backdrop-filter:blur(4px)}
 
-/* ── Sidenav: warm dark rail, copper tap-off on the active item ─────────── */
-.sidenav{background:var(--navy-950); background-image:none}
-.sidenav::before{display:none}
+/* ── Sidenav: animated active indicator + accent glow ──────────────────── */
+.sidenav{background:linear-gradient(180deg,#07111F,#0b1424)}
 .nav-item{position:relative; overflow:hidden}
-.nav-item::before{
+.nav-item::before{ /* sliding indicator bar */
   content:''; position:absolute; left:0; top:50%; transform:translateY(-50%) scaleY(0);
-  width:3px; height:58%; border-radius:0 3px 3px 0; background:var(--gold-400);
+  width:3px; height:62%; border-radius:0 3px 3px 0;
+  background:linear-gradient(var(--gold-400),var(--gold-500)); box-shadow:0 0 12px rgba(212,175,55,.6);
   transition:transform var(--dur) var(--ease-spring);
 }
 .nav-item.active::before{transform:translateY(-50%) scaleY(1)}
 .nav-item.active{
-  background:linear-gradient(90deg,rgba(180,99,58,.18),rgba(180,99,58,.04) 70%,transparent);
-  color:#E8A97F; box-shadow:none;
+  background:linear-gradient(90deg,rgba(212,175,55,.16),rgba(79,70,229,.10) 60%,transparent);
+  box-shadow:none; color:var(--gold-400);
 }
-.nav-item:hover{background:rgba(255,255,255,.05); color:#F2EBE2}
-.mnav-item.active{background:rgba(180,99,58,.18); color:#E8A97F; box-shadow:inset 0 -2px 0 var(--gold-400)}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.mnav-item.active{box-shadow:inset 0 -2px 0 var(--gold-400)}
 
-/* ── Cards: paper. Lift on hover, nothing else. ─────────────────────────── */
+/* ── Cards: glass surface, hover lift, animated gradient border ─────────── */
 .card{
-  position:relative; background:var(--surface); border:1px solid var(--line);
-  box-shadow:var(--shadow-sm);
-  transition:transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out),
-             border-color var(--dur) var(--ease-out);
+  position:relative; background:linear-gradient(180deg,#fff, #fbfcff);
+  border:1px solid var(--line); box-shadow:var(--shadow-sm);
+  transition:transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
-.card.hoverable:hover{transform:translateY(-2px); box-shadow:var(--shadow-md); border-color:var(--line-strong)}
-/* the old animated gradient ring is gone */
-.card.hoverable::after,.stat-card::after{content:none}
+.card.hoverable:hover{
+  transform:translateY(-3px); box-shadow:var(--shadow-lg); border-color:transparent;
+}
+/* gradient border glow on hover for interactive cards */
+.card.hoverable::after,.stat-card::after{
+  content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1px; pointer-events:none;
+  background:linear-gradient(130deg,rgba(0,212,255,.0),rgba(79,70,229,.0) 40%,rgba(212,175,55,.0));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  opacity:0; transition:opacity var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.card.hoverable:hover::after,.stat-card:hover::after{
+  opacity:1;
+  background:linear-gradient(130deg,rgba(0,212,255,.55),rgba(79,70,229,.55) 45%,rgba(212,175,55,.6));
+}
 
-/* ── Stat cards ─────────────────────────────────────────────────────────── */
-.stat-card{background:var(--surface); overflow:hidden}
+/* ── Stat cards: corner aurora + metal value ───────────────────────────── */
+.stat-card{background:linear-gradient(160deg,#fff 55%,#f3f6fd); overflow:hidden}
 .stat-card::before{
-  background:radial-gradient(circle,rgba(180,99,58,.10),transparent 70%);
-  width:76px; height:76px;
+  background:radial-gradient(circle,rgba(0,212,255,.16),rgba(79,70,229,.10) 45%,transparent 72%);
+  width:84px; height:84px;
 }
-.stat-card:hover{animation:none; box-shadow:var(--shadow-md)}
 .stat-val{
-  font-family:var(--font-display); letter-spacing:-.02em; color:var(--ink);
-  -webkit-text-fill-color:currentColor; background:none;
+  font-family:var(--font-heading); letter-spacing:-.02em;
+  background:linear-gradient(120deg,#0D1628,#27407e);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
 }
 
-/* ── Buttons ────────────────────────────────────────────────────────────── */
+/* ── Buttons: sheen sweep, glow, ripple, magnetic ──────────────────────── */
 .btn{position:relative; overflow:hidden; isolation:isolate}
-.btn-primary{background:var(--navy-900); box-shadow:var(--shadow-sm)}
-.btn-primary:hover{background:var(--navy-800); box-shadow:var(--shadow-md)}
 .btn-gold{
-  background:var(--gold-400); color:#FFF8F3; box-shadow:var(--shadow-gold);
-  font-weight:700; letter-spacing:.005em;
+  background:linear-gradient(135deg,var(--gold-pale),var(--gold-400) 45%,var(--gold-500));
+  color:#1a1304; box-shadow:var(--shadow-gold); font-weight:700; letter-spacing:.01em;
 }
-.btn-gold:hover{background:var(--gold-500); box-shadow:0 6px 20px rgba(180,99,58,.34); transform:translateY(-1px)}
-.btn-gold::before{
+.btn-gold::before{ /* moving light sheen */
   content:''; position:absolute; inset:0; z-index:-1;
-  background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);
-  transform:translateX(-130%); transition:transform .55s var(--ease);
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.65) 50%,transparent 70%);
+  transform:translateX(-130%); transition:transform .6s var(--ease);
 }
 .btn-gold:hover::before{transform:translateX(130%)}
-.btn-gold::after{content:none}
-.btn.on{background:var(--gold-400); color:#FFF8F3; border-color:transparent; box-shadow:var(--shadow-gold)}
-.lux-ripple{
-  position:absolute; border-radius:50%; transform:scale(0); pointer-events:none; z-index:0;
-  background:radial-gradient(circle,rgba(255,255,255,.45),transparent 70%);
-  animation:luxRipple .55s var(--ease-out) forwards;
-}
+.btn-gold:hover{box-shadow:0 8px 30px rgba(212,175,55,.5), var(--glow-gold); transform:translateY(-1px)}
+.btn-primary{background:var(--grad-chrome); box-shadow:var(--shadow-sm)}
+.btn-primary:hover{background:linear-gradient(135deg,#101a30,#1b2a52); box-shadow:var(--glow-cyan)}
+/* ripple injected by JS */
+.lux-ripple{position:absolute; border-radius:50%; transform:scale(0); pointer-events:none;
+  background:radial-gradient(circle,rgba(255,255,255,.55),transparent 70%); animation:luxRipple .6s var(--ease-out) forwards; z-index:0}
 @keyframes luxRipple{to{transform:scale(2.6); opacity:0}}
 
-/* focus ring picks up the accent */
-input:focus,select:focus,textarea:focus{
-  border-color:var(--gold-400); box-shadow:0 0 0 3px rgba(180,99,58,.15);
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   SIGN-IN — daylight switchyard
-   The line-work is the whole screen now. It draws itself once, left to
-   right, the way a conductor is strung: towers first, then the span.
-   ════════════════════════════════════════════════════════════════════════ */
-.auth-wrap{
-  position:relative; overflow:hidden; isolation:isolate; box-shadow:none;
-  background:linear-gradient(180deg,#FDFAF4 0%,#F8F3EA 46%,#F1E9DC 100%);
-}
-.auth-wrap::before{
-  /* low warm light pooling behind the card */
-  content:''; position:absolute; inset:0; z-index:0;
-  background:radial-gradient(58% 46% at 50% 30%, rgba(255,255,255,.9), transparent 70%);
-  animation:none; filter:none;
-}
-.auth-wrap::after{
-  /* survey grid, very faint — a drawing sheet, not a HUD */
-  content:''; position:absolute; inset:0; z-index:0; opacity:.5;
-  background-image:linear-gradient(rgba(120,100,80,.07) 1px,transparent 1px),
-                   linear-gradient(90deg,rgba(120,100,80,.07) 1px,transparent 1px);
-  background-size:52px 52px;
-  -webkit-mask:radial-gradient(circle at 50% 42%,#000,transparent 76%);
-          mask:radial-gradient(circle at 50% 42%,#000,transparent 76%);
-}
-
-.lux-skyline{
-  position:absolute; left:0; right:0; bottom:0; height:56%; z-index:1; pointer-events:none;
-  background:var(--art-skyline) bottom center / cover no-repeat;
-  opacity:.9; filter:none;
-  -webkit-mask:linear-gradient(180deg,transparent,#000 40%);
-          mask:linear-gradient(180deg,transparent,#000 40%);
-  clip-path:inset(0 100% 0 0);
-  animation:skylineDraw 1.4s var(--ease-out) .15s forwards;
-  transition:transform .3s var(--ease-out);
-}
-@keyframes skylineDraw{to{clip-path:inset(0 0 0 0)}}
-
-.lux-horizon{
-  position:absolute; left:0; right:0; bottom:0; height:1px; z-index:1; pointer-events:none;
-  background:linear-gradient(90deg,transparent,rgba(158,120,90,.55) 20%,rgba(158,120,90,.55) 80%,transparent);
-  filter:none; transform:scaleX(0); transform-origin:0 50%;
-  animation:horizonDraw 1s var(--ease-out) forwards;
-}
-@keyframes horizonDraw{to{transform:scaleX(1)}}
-
-/* the console is paper now, not glass */
-.auth-wrap .auth-card{
-  position:relative; z-index:2;
-  background:var(--surface);
-  -webkit-backdrop-filter:none; backdrop-filter:none;
-  border:1px solid var(--line);
-  box-shadow:0 18px 50px rgba(60,42,28,.14), 0 3px 10px rgba(60,42,28,.07);
-  color:var(--ink); max-width:412px; padding:34px 30px;
-}
-.auth-wrap .auth-card::before{content:none}   /* no spinning conic frame */
-.auth-wrap .auth-logo .bolt{color:var(--gold-400); filter:none}
-.auth-wrap .auth-logo h1{
-  color:var(--ink); font-family:var(--font-display); font-size:19px; letter-spacing:-.02em;
-  background:none; -webkit-text-fill-color:currentColor; animation:none;
-}
-.auth-wrap .auth-logo p{color:var(--steel-600)}
-.auth-wrap label{color:var(--steel-700)}
-.auth-wrap .tabs{border-bottom-color:var(--line)}
-.auth-wrap .tab{color:var(--steel-600)}
-.auth-wrap .tab:hover{color:var(--ink)}
-.auth-wrap .tab.active{color:var(--gold-600); border-color:var(--gold-400)}
-.auth-wrap .hint,.auth-wrap .text-sm,.auth-wrap .text-muted{color:var(--steel-600)}
-.auth-wrap .hint a,.auth-wrap a{color:var(--gold-600)}
-.auth-wrap input[type=text],.auth-wrap input[type=password],.auth-wrap textarea{
-  background:var(--surface-2); border:1.5px solid var(--line-strong); color:var(--ink);
-}
-.auth-wrap input::placeholder{color:var(--steel-400)}
-.auth-wrap input:focus,.auth-wrap textarea:focus{
-  border-color:var(--gold-400); background:var(--surface);
-  box-shadow:0 0 0 3px rgba(180,99,58,.15);
-}
-.auth-wrap .toggle-track{background:var(--steel-300)}
-.auth-wrap .btn-ghost{color:var(--steel-700); border-color:var(--line-strong); background:var(--surface)}
-.auth-wrap .btn-ghost:hover{background:var(--surface-3)}
-.auth-wrap .badge-ok{background:var(--ok-100); color:var(--ok-500)}
-
-/* staggered entrance for the console's children (JS adds .lux-stagger) */
-.auth-wrap .auth-card.lux-stagger > *{opacity:0; transform:translateY(10px); animation:luxStagIn .5s var(--ease-out) forwards}
-.auth-wrap .auth-card.lux-stagger > *:nth-child(1){animation-delay:.30s}
-.auth-wrap .auth-card.lux-stagger > *:nth-child(2){animation-delay:.37s}
-.auth-wrap .auth-card.lux-stagger > *:nth-child(3){animation-delay:.44s}
-.auth-wrap .auth-card.lux-stagger > *:nth-child(4){animation-delay:.51s}
-.auth-wrap .auth-card.lux-stagger > *:nth-child(5){animation-delay:.58s}
-@keyframes luxStagIn{to{opacity:1; transform:none}}
-
-/* ════════════════════════════════════════════════════════════════════════
-   MONEY — the payoff rows
-   The old treatment ran a shine across the totals every 4.5 seconds whether
-   or not anything had changed. Now the sweep runs ONCE, when the row is
-   rendered, which is exactly when the figure is new information.
-   ════════════════════════════════════════════════════════════════════════ */
-.totals-box{
-  background:var(--navy-900); background-image:none; position:relative; overflow:hidden;
-  border:1px solid #100D0B;
-}
-.totals-row{color:var(--steel-300)}
-.totals-row.grand{color:var(--gold-400); border-top:1px solid rgba(255,255,255,.14)}
-.totals-row.grand .v{text-shadow:none}
-
-.sr-row.final{
-  background:var(--navy-900); background-image:none; position:relative; overflow:hidden;
-}
-.sr-row.final .sr-val{color:var(--gold-400); text-shadow:none}
-.sr-row.subtotal{background:var(--surface-2)}
-.sr-row.subtotal .sr-label,.sr-row.subtotal .sr-val{color:var(--gold-600)}
-
-.totals-box::after,.sr-row.final::after{
-  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
-  background:linear-gradient(115deg,transparent 38%,rgba(232,169,127,.20) 50%,transparent 62%);
-  transform:translateX(-100%);
-  animation:moneySweep 1.1s var(--ease-out) .18s 1;   /* once, not forever */
-}
-@keyframes moneySweep{to{transform:translateX(100%)}}
-
-.awords-box{
-  background:var(--surface-2); border:1px solid var(--line);
-  border-left:3px solid var(--gold-400);
-  color:var(--gold-600); box-shadow:none;
-}
-
-/* ── Dashboard rows: reveal in sequence on render ───────────────────────── */
-.est-list .est-card{animation:rowIn .38s var(--ease-out) both}
-.est-list .est-card:nth-child(1){animation-delay:.00s}
-.est-list .est-card:nth-child(2){animation-delay:.03s}
-.est-list .est-card:nth-child(3){animation-delay:.06s}
-.est-list .est-card:nth-child(4){animation-delay:.09s}
-.est-list .est-card:nth-child(5){animation-delay:.12s}
-.est-list .est-card:nth-child(6){animation-delay:.15s}
-.est-list .est-card:nth-child(7){animation-delay:.18s}
-.est-list .est-card:nth-child(8){animation-delay:.21s}
-.est-list .est-card:nth-child(9){animation-delay:.24s}
-.est-list .est-card:nth-child(10){animation-delay:.27s}
-.est-list .est-card:nth-child(n+11){animation-delay:.30s}
-@keyframes rowIn{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
-.est-card:focus-visible{outline:2px solid var(--gold-400); outline-offset:2px}
-
-/* ── Scroll reveal (kept, quieter) ──────────────────────────────────────── */
-.lux-reveal{opacity:0; transform:translateY(14px); transition:opacity .5s var(--ease-out), transform .5s var(--ease-out)}
+/* ── Scroll reveal ─────────────────────────────────────────────────────── */
+.lux-reveal{opacity:0; transform:translateY(22px); transition:opacity .7s var(--ease-out), transform .7s var(--ease-out)}
 .lux-reveal.in{opacity:1; transform:none}
-/* The Final Estimate preview is a document, not a card. It must never depend
-   on a scroll animation to become visible, and must never be promoted to a
-   compositing layer (a layer taller than the browser's max texture stops
-   painting partway down, cutting long tables off mid-table). */
+/* Hard safety net: the Final Estimate preview is a document, not a card.
+   It must never depend on a scroll animation to become visible, and it must
+   never be promoted to a compositing layer (a layer taller than the browser's
+   max texture stops painting partway down, cutting long tables off mid-table). */
 #fe-result .lux-reveal,
 #fe-result .card,
 #fe-result .table-wrap{opacity:1 !important; transform:none !important; transition:none !important}
 
-/* ── Loader ─────────────────────────────────────────────────────────────── */
-.lux-loader{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; min-height:60vh; width:100%}
-.lux-loader .orbit{position:relative; width:74px; height:74px}
-.lux-loader .ring,.lux-loader .ring2{position:absolute; inset:0; border-radius:50%}
-.lux-loader .ring{
-  background:conic-gradient(from 0deg, transparent 0 20%, var(--gold-400) 52%, transparent 88% 100%);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
-          mask:radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
-  animation:luxSpinA 1s linear infinite;
+/* ── Custom cursor glow (desktop, fine pointer only) ───────────────────── */
+#lux-cursor{
+  position:fixed; top:0; left:0; width:26px; height:26px; border-radius:50%; z-index:9999;
+  pointer-events:none; mix-blend-mode:screen; transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(0,212,255,.5),rgba(79,70,229,.25) 45%,transparent 70%);
+  opacity:0; transition:opacity .3s, width .2s, height .2s;
 }
-.lux-loader .ring2{
-  inset:11px;
-  background:conic-gradient(from 200deg, transparent 0 62%, var(--steel-300) 86%, transparent 100%);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
-          mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
-  animation:luxSpinA 1.6s linear infinite reverse;
-}
-.lux-loader .bolt{
-  position:absolute; inset:0; pointer-events:none; filter:none; animation:none;
-  background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M13%202L4%2014h6l-1%208%209-12h-6z'%20fill='%23B4633A'/%3E%3C/svg%3E") center / 22px no-repeat;
-}
-@keyframes luxSpinA{to{transform:rotate(360deg)}}
-.lux-loader .label{
-  font-family:var(--font-display); font-size:12.5px; font-weight:600; letter-spacing:.06em;
-  text-transform:uppercase; color:var(--steel-600);
-  background:none; -webkit-text-fill-color:currentColor; animation:none;
-}
-.spinner{border:2.5px solid rgba(255,255,255,.28); border-top-color:#fff; filter:none}
-.spinner.dark{border:2.5px solid var(--line-strong); border-top-color:var(--gold-400)}
-.sync-bolt-active{animation:boltMove .9s ease-in-out infinite}
+body.lux-cursor-on #lux-cursor{opacity:1}
+body.lux-cursor-on{cursor:auto}
+#lux-cursor.hot{width:46px; height:46px; background:radial-gradient(circle,rgba(212,175,55,.55),transparent 70%)}
 
-/* ── Reduced motion ─────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ CINEMATIC DARK ENTRY ✦ — login / register / setup
+   An EHV switchyard at night: aurora field, drifting particles, a current
+   light-sweep, and a glass console card with an animated gradient frame.
+   ════════════════════════════════════════════════════════════════════════ */
+.auth-wrap{
+  position:relative; overflow:hidden;
+  background:#07111F; isolation:isolate;
+}
+/* layered aurora mesh */
+.auth-wrap::before{
+  content:''; position:absolute; inset:-20%; z-index:0;
+  background:var(--grad-aurora); filter:blur(34px) saturate(135%);
+  animation:luxAurora 22s ease-in-out infinite alternate;
+}
+/* fine engineering grid, like a switchyard plan */
+.auth-wrap::after{
+  content:''; position:absolute; inset:0; z-index:0; opacity:.25;
+  background-image:linear-gradient(rgba(148,163,184,.12) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(148,163,184,.12) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask:radial-gradient(circle at 50% 40%,#000,transparent 78%);
+  mask:radial-gradient(circle at 50% 40%,#000,transparent 78%);
+}
+@keyframes luxAurora{
+  0%{transform:translate3d(-3%,-2%,0) scale(1.05) rotate(0deg)}
+  50%{transform:translate3d(3%,2%,0) scale(1.12) rotate(6deg)}
+  100%{transform:translate3d(-2%,3%,0) scale(1.06) rotate(-4deg)}
+}
+/* particle canvas + current sweep are injected by JS into .auth-wrap */
+#lux-particles{position:absolute; inset:0; z-index:1; pointer-events:none}
+.lux-sweep{
+  position:absolute; top:0; bottom:0; width:42%; z-index:1; pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(0,212,255,.10) 40%,rgba(212,175,55,.14) 55%,transparent);
+  filter:blur(8px); transform:translateX(-60%) skewX(-12deg);
+  animation:luxSweep 9s var(--ease) infinite;
+}
+@keyframes luxSweep{0%{transform:translateX(-70%) skewX(-12deg)}60%,100%{transform:translateX(240%) skewX(-12deg)}}
+
+/* glass console card */
+.auth-wrap .auth-card{
+  position:relative; z-index:2;
+  background:linear-gradient(180deg,rgba(20,30,52,.72),rgba(11,18,34,.74));
+  -webkit-backdrop-filter:blur(22px) saturate(150%); backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.10);
+  color:#E5E7EB; max-width:430px; padding:36px 32px;
+}
+/* animated gradient frame */
+.auth-wrap .auth-card::before{
+  content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1.5px; pointer-events:none;
+  background:conic-gradient(from var(--lux-angle,0deg),var(--cyan),var(--indigo),var(--violet),var(--gold-400),var(--cyan));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude; opacity:.85;
+  animation:luxSpin 8s linear infinite;
+}
+@property --lux-angle{syntax:'<angle>'; inherits:false; initial-value:0deg}
+@keyframes luxSpin{to{--lux-angle:360deg}}
+
+/* dark-themed contents inside the console */
+.auth-wrap .auth-logo .bolt{color:var(--gold-400); filter:drop-shadow(0 0 14px rgba(212,175,55,.6))}
+.auth-wrap .auth-logo h1{color:#fff; font-family:var(--font-heading); font-size:20px; letter-spacing:-.02em}
+.auth-wrap .auth-logo p{color:var(--steel-300)}
+.auth-wrap label{color:#c3cce0}
+.auth-wrap .tabs{border-bottom-color:rgba(255,255,255,.12)}
+.auth-wrap .tab{color:var(--steel-300)}
+.auth-wrap .tab:hover{color:#fff}
+.auth-wrap .tab.active{color:var(--gold-400); border-color:var(--gold-400)}
+.auth-wrap .hint,.auth-wrap .text-sm,.auth-wrap .text-muted{color:#9fb0cc}
+.auth-wrap .hint a,.auth-wrap a{color:var(--cyan)}
+.auth-wrap input[type=text],.auth-wrap input[type=password],.auth-wrap textarea{
+  background:rgba(255,255,255,.05); border:1.5px solid rgba(255,255,255,.14); color:#fff;
+}
+.auth-wrap input::placeholder{color:#6f7f9c}
+.auth-wrap input:focus,.auth-wrap textarea:focus{
+  border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,212,255,.18), 0 0 24px rgba(0,212,255,.15);
+}
+.auth-wrap .toggle-track{background:rgba(255,255,255,.2)}
+.auth-wrap .btn-ghost{color:#cfe0ff; border-color:rgba(255,255,255,.2); background:rgba(255,255,255,.04)}
+.auth-wrap .btn-ghost:hover{background:rgba(255,255,255,.10)}
+.auth-wrap .badge-ok{background:rgba(30,138,95,.2); color:#5fe0a8}
+
+/* staggered entrance for console children (JS adds .lux-stagger) */
+.auth-wrap .auth-card.lux-stagger > *{opacity:0; transform:translateY(14px); animation:luxStagIn .6s var(--ease-out) forwards}
+.auth-wrap .auth-card.lux-stagger > *:nth-child(1){animation-delay:.05s}
+.auth-wrap .auth-card.lux-stagger > *:nth-child(2){animation-delay:.14s}
+.auth-wrap .auth-card.lux-stagger > *:nth-child(3){animation-delay:.23s}
+.auth-wrap .auth-card.lux-stagger > *:nth-child(4){animation-delay:.32s}
+.auth-wrap .auth-card.lux-stagger > *:nth-child(5){animation-delay:.41s}
+@keyframes luxStagIn{to{opacity:1; transform:none}}
+
+/* ── Page transition refinement ────────────────────────────────────────── */
+.main{scroll-behavior:smooth}
+
+/* ── Reduced motion: strip ambient motion, keep instant states ─────────── */
 @media (prefers-reduced-motion: reduce){
-  .lux-skyline{clip-path:none !important; animation:none !important}
-  .lux-horizon{transform:none !important; animation:none !important}
-  .est-list .est-card,
-  .auth-wrap .auth-card.lux-stagger > *{opacity:1 !important; transform:none !important; animation:none !important}
-  .totals-box::after,.sr-row.final::after{display:none !important}
+  .auth-wrap::before,.lux-sweep,.auth-wrap .auth-card::before,.btn-gold::before{animation:none !important}
   .lux-reveal{opacity:1 !important; transform:none !important}
-  .btn-gold::before{animation:none !important; transition:none !important}
+  #lux-cursor{display:none !important}
+  .auth-wrap .auth-card.lux-stagger > *{opacity:1 !important; transform:none !important; animation:none !important}
 }
 @media (hover:none),(pointer:coarse){#lux-cursor{display:none !important}}
+
+
+
+/* ████████████████████████████████████████████████████████████████████████
+   ✦✦ MAXIMALIST LAYER ✦✦  — domain-grounded cinematic atmosphere.
+   Procedural SVG art (transmission-tower skyline, busbar circuit traces,
+   blueprint grid, film grain) embedded as data-URIs. All GPU-only motion,
+   reduced-motion safe. Swap art by replacing the --art-* vars below.
+   ████████████████████████████████████████████████████████████████████████ */
+:root{
+  --art-skyline:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201600%20320%22%20preserveAspectRatio%3D%22xMidYMax%20meet%22%3E%3Cpath%20d%3D%22M58.45%20146.7%20Q204.715%20189.49%20350.98%20180.28%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M76.30000000000001%20146.7%20Q220.61%20189.49%20364.92%20180.28%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M112.0%20146.7%20Q252.4%20189.49%20392.8%20180.28%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M129.85000000000002%20146.7%20Q268.295%20189.49%20406.74%20180.28%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M350.98%20180.28%20Q479.0%20180.0%20607.02%20127.72000000000001%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M364.92%20180.28%20Q496.0%20180.0%20627.08%20127.72000000000001%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M392.8%20180.28%20Q530.0%20180.0%20667.1999999999999%20127.72000000000001%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M406.74%20180.28%20Q547.0%20180.0%20687.26%20127.72000000000001%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M607.02%20127.72000000000001%20Q789.22%20182.92%20971.4200000000001%20186.11999999999998%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M627.08%20127.72000000000001%20Q805.8800000000001%20182.92%20984.6800000000001%20186.11999999999998%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M667.1999999999999%20127.72000000000001%20Q839.2%20182.92%201011.2%20186.11999999999998%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M687.26%20127.72000000000001%20Q855.86%20182.92%201024.46%20186.11999999999998%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M971.4200000000001%20186.11999999999998%20Q1100.21%20196.06%201229.0%20154.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M984.6800000000001%20186.11999999999998%20Q1115.3400000000001%20196.06%201246.0%20154.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1011.2%20186.11999999999998%20Q1145.6%20196.06%201280.0%20154.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1024.46%20186.11999999999998%20Q1160.73%20196.06%201297.0%20154.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1229.0%20154.0%20Q1359.5500000000002%20187.3%201490.1000000000001%20168.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1246.0%20154.0%20Q1375.7%20187.3%201505.4%20168.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1280.0%20154.0%20Q1408.0%20187.3%201536.0%20168.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M1297.0%20154.0%20Q1424.15%20187.3%201551.3%20168.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20opacity%3D%220.55%22%2F%3E%3Cpath%20d%3D%22M70%20300%20L87.85000000000001%20132.0%20M118.30000000000001%20300%20L100.45%20132.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.47%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%2272.553%22%20y1%3D%22276.0%22%20x2%3D%22115.74700000000001%22%20y2%3D%22276.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2275.10600000000001%22%20y1%3D%22252.0%22%20x2%3D%22113.19400000000002%22%20y2%3D%22252.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2277.659%22%20y1%3D%22228.0%22%20x2%3D%22110.641%22%20y2%3D%22228.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2280.212%22%20y1%3D%22204.0%22%20x2%3D%22108.08800000000001%22%20y2%3D%22204.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2282.765%22%20y1%3D%22180.0%22%20x2%3D%22105.535%22%20y2%3D%22180.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cline%20x1%3D%2285.318%22%20y1%3D%22156.0%22%20x2%3D%22102.982%22%20y2%3D%22156.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.05%22%2F%3E%3Cpath%20d%3D%22M70.0%20300.0%20L115.74700000000001%20276.0%20M118.30000000000001%20300.0%20L72.553%20276.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M72.553%20276.0%20L113.19400000000002%20252.0%20M115.74700000000001%20276.0%20L75.10600000000001%20252.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M75.10600000000001%20252.0%20L110.641%20228.0%20M113.19400000000002%20252.0%20L77.659%20228.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M77.659%20228.0%20L108.08800000000001%20204.0%20M110.641%20228.0%20L80.212%20204.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M80.212%20204.0%20L105.535%20180.0%20M108.08800000000001%20204.0%20L82.765%20180.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cpath%20d%3D%22M82.765%20180.0%20L102.982%20156.0%20M105.535%20180.0%20L85.318%20156.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.735%22%2F%3E%3Cline%20x1%3D%2258.45%22%20y1%3D%22146.7%22%20x2%3D%22129.85000000000002%22%20y2%3D%22146.7%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.26%22%2F%3E%3Ccircle%20cx%3D%2258.45%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%2276.30000000000001%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22112.0%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22129.85000000000002%22%20cy%3D%22146.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%2264.75%22%20y1%3D%22167.7%22%20x2%3D%22123.55000000000001%22%20y2%3D%22167.7%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.26%22%2F%3E%3Ccircle%20cx%3D%2264.75%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%2279.45%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22108.85000000000001%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22123.55000000000001%22%20cy%3D%22167.7%22%20r%3D%221.5750000000000002%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M94.15%20132.0%20l-7.3500000000000005%2012.600000000000001%20l14.700000000000001%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M360%20300%20L373.94%20168.8%20M397.72%20300%20L383.78000000000003%20168.8%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.148%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22361.99377142857145%22%20y1%3D%22281.25714285714287%22%20x2%3D%22395.7262285714286%22%20y2%3D%22281.25714285714287%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22363.9875428571429%22%20y1%3D%22262.51428571428573%22%20x2%3D%22393.7324571428572%22%20y2%3D%22262.51428571428573%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22365.9813142857143%22%20y1%3D%22243.77142857142857%22%20x2%3D%22391.73868571428574%22%20y2%3D%22243.77142857142857%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22367.97508571428574%22%20y1%3D%22225.02857142857144%22%20x2%3D%22389.7449142857143%22%20y2%3D%22225.02857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22369.96885714285713%22%20y1%3D%22206.28571428571428%22%20x2%3D%22387.75114285714284%22%20y2%3D%22206.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cline%20x1%3D%22371.9626285714286%22%20y1%3D%22187.54285714285714%22%20x2%3D%22385.75737142857145%22%20y2%3D%22187.54285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.82%22%2F%3E%3Cpath%20d%3D%22M360.0%20300.0%20L395.7262285714286%20281.25714285714287%20M397.72%20300.0%20L361.99377142857145%20281.25714285714287%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M361.99377142857145%20281.25714285714287%20L393.7324571428572%20262.51428571428573%20M395.7262285714286%20281.25714285714287%20L363.9875428571429%20262.51428571428573%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M363.9875428571429%20262.51428571428573%20L391.73868571428574%20243.77142857142857%20M393.7324571428572%20262.51428571428573%20L365.9813142857143%20243.77142857142857%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M365.9813142857143%20243.77142857142857%20L389.7449142857143%20225.02857142857144%20M391.73868571428574%20243.77142857142857%20L367.97508571428574%20225.02857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M367.97508571428574%20225.02857142857144%20L387.75114285714284%20206.28571428571428%20M389.7449142857143%20225.02857142857144%20L369.96885714285713%20206.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cpath%20d%3D%22M369.96885714285713%20206.28571428571428%20L385.75737142857145%20187.54285714285714%20M387.75114285714284%20206.28571428571428%20L371.9626285714286%20187.54285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.574%22%2F%3E%3Cline%20x1%3D%22350.98%22%20y1%3D%22180.28%22%20x2%3D%22406.74%22%20y2%3D%22180.28%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9839999999999999%22%2F%3E%3Ccircle%20cx%3D%22350.98%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22364.92%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22392.8%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22406.74%22%20cy%3D%22180.28%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%22355.90000000000003%22%20y1%3D%22196.68%22%20x2%3D%22401.82%22%20y2%3D%22196.68%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9839999999999999%22%2F%3E%3Ccircle%20cx%3D%22355.90000000000003%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22367.38%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22390.34000000000003%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22401.82%22%20cy%3D%22196.68%22%20r%3D%221.23%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M378.86%20168.8%20l-5.739999999999999%209.84%20l11.479999999999999%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M620%20300%20L640.06%20111.20000000000002%20M674.28%20300%20L654.22%20111.20000000000002%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.652%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22622.8690857142857%22%20y1%3D%22273.0285714285714%22%20x2%3D%22671.4109142857143%22%20y2%3D%22273.0285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22625.7381714285714%22%20y1%3D%22246.05714285714288%22%20x2%3D%22668.5418285714285%22%20y2%3D%22246.05714285714288%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22628.6072571428572%22%20y1%3D%22219.0857142857143%22%20x2%3D%22665.6727428571429%22%20y2%3D%22219.0857142857143%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22631.4763428571429%22%20y1%3D%22192.11428571428573%22%20x2%3D%22662.8036571428571%22%20y2%3D%22192.11428571428573%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22634.3454285714286%22%20y1%3D%22165.14285714285717%22%20x2%3D%22659.9345714285714%22%20y2%3D%22165.14285714285717%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cline%20x1%3D%22637.2145142857142%22%20y1%3D%22138.17142857142858%22%20x2%3D%22657.0654857142857%22%20y2%3D%22138.17142857142858%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.18%22%2F%3E%3Cpath%20d%3D%22M620.0%20300.0%20L671.4109142857143%20273.0285714285714%20M674.28%20300.0%20L622.8690857142857%20273.0285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M622.8690857142857%20273.0285714285714%20L668.5418285714285%20246.05714285714288%20M671.4109142857143%20273.0285714285714%20L625.7381714285714%20246.05714285714288%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M625.7381714285714%20246.05714285714288%20L665.6727428571429%20219.0857142857143%20M668.5418285714285%20246.05714285714288%20L628.6072571428572%20219.0857142857143%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M628.6072571428572%20219.0857142857143%20L662.8036571428571%20192.11428571428573%20M665.6727428571429%20219.0857142857143%20L631.4763428571429%20192.11428571428573%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M631.4763428571429%20192.11428571428573%20L659.9345714285714%20165.14285714285717%20M662.8036571428571%20192.11428571428573%20L634.3454285714286%20165.14285714285717%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cpath%20d%3D%22M634.3454285714286%20165.14285714285717%20L657.0654857142857%20138.17142857142858%20M659.9345714285714%20165.14285714285717%20L637.2145142857142%20138.17142857142858%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.826%22%2F%3E%3Cline%20x1%3D%22607.02%22%20y1%3D%22127.72000000000001%22%20x2%3D%22687.26%22%20y2%3D%22127.72000000000001%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.416%22%2F%3E%3Ccircle%20cx%3D%22607.02%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22627.08%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22667.1999999999999%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22687.26%22%20cy%3D%22127.72000000000001%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%22614.1%22%20y1%3D%22151.32000000000002%22%20x2%3D%22680.18%22%20y2%3D%22151.32000000000002%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.416%22%2F%3E%3Ccircle%20cx%3D%22614.1%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22630.62%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22663.66%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22680.18%22%20cy%3D%22151.32000000000002%22%20r%3D%221.77%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M647.14%20111.20000000000002%20l-8.26%2014.16%20l16.52%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M980%20300%20L993.2600000000001%20175.2%20M1015.88%20300%20L1002.62%20175.2%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0919999999999999%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%22981.8965142857144%22%20y1%3D%22282.1714285714286%22%20x2%3D%221013.9834857142858%22%20y2%3D%22282.1714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22983.7930285714286%22%20y1%3D%22264.34285714285716%22%20x2%3D%221012.0869714285715%22%20y2%3D%22264.34285714285716%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22985.6895428571429%22%20y1%3D%22246.5142857142857%22%20x2%3D%221010.1904571428572%22%20y2%3D%22246.5142857142857%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22987.5860571428572%22%20y1%3D%22228.68571428571428%22%20x2%3D%221008.2939428571428%22%20y2%3D%22228.68571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22989.4825714285715%22%20y1%3D%22210.85714285714286%22%20x2%3D%221006.3974285714287%22%20y2%3D%22210.85714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cline%20x1%3D%22991.3790857142858%22%20y1%3D%22193.0285714285714%22%20x2%3D%221004.5009142857143%22%20y2%3D%22193.0285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.78%22%2F%3E%3Cpath%20d%3D%22M980.0%20300.0%20L1013.9834857142858%20282.1714285714286%20M1015.88%20300.0%20L981.8965142857144%20282.1714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M981.8965142857144%20282.1714285714286%20L1012.0869714285715%20264.34285714285716%20M1013.9834857142858%20282.1714285714286%20L983.7930285714286%20264.34285714285716%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M983.7930285714286%20264.34285714285716%20L1010.1904571428572%20246.5142857142857%20M1012.0869714285715%20264.34285714285716%20L985.6895428571429%20246.5142857142857%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M985.6895428571429%20246.5142857142857%20L1008.2939428571428%20228.68571428571428%20M1010.1904571428572%20246.5142857142857%20L987.5860571428572%20228.68571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M987.5860571428572%20228.68571428571428%20L1006.3974285714287%20210.85714285714286%20M1008.2939428571428%20228.68571428571428%20L989.4825714285715%20210.85714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cpath%20d%3D%22M989.4825714285715%20210.85714285714286%20L1004.5009142857143%20193.0285714285714%20M1006.3974285714287%20210.85714285714286%20L991.3790857142858%20193.0285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.5459999999999999%22%2F%3E%3Cline%20x1%3D%22971.4200000000001%22%20y1%3D%22186.11999999999998%22%20x2%3D%221024.46%22%20y2%3D%22186.11999999999998%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9359999999999999%22%2F%3E%3Ccircle%20cx%3D%22971.4200000000001%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22984.6800000000001%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221011.2%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221024.46%22%20cy%3D%22186.11999999999998%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%22976.1%22%20y1%3D%22201.72%22%20x2%3D%221019.7800000000001%22%20y2%3D%22201.72%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9359999999999999%22%2F%3E%3Ccircle%20cx%3D%22976.1%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%22987.0200000000001%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221008.86%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221019.7800000000001%22%20cy%3D%22201.72%22%20r%3D%221.17%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M997.94%20175.2%20l-5.46%209.36%20l10.92%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M1240%20300%20L1257.0%20140.0%20M1286.0%20300%20L1269.0%20140.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.4%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%221242.4314285714286%22%20y1%3D%22277.14285714285717%22%20x2%3D%221283.5685714285714%22%20y2%3D%22277.14285714285717%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221244.8628571428571%22%20y1%3D%22254.28571428571428%22%20x2%3D%221281.1371428571429%22%20y2%3D%22254.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221247.2942857142857%22%20y1%3D%22231.42857142857144%22%20x2%3D%221278.7057142857143%22%20y2%3D%22231.42857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221249.7257142857143%22%20y1%3D%22208.57142857142856%22%20x2%3D%221276.2742857142857%22%20y2%3D%22208.57142857142856%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221252.1571428571428%22%20y1%3D%22185.71428571428572%22%20x2%3D%221273.8428571428572%22%20y2%3D%22185.71428571428572%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cline%20x1%3D%221254.5885714285714%22%20y1%3D%22162.85714285714286%22%20x2%3D%221271.4114285714286%22%20y2%3D%22162.85714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.0%22%2F%3E%3Cpath%20d%3D%22M1240.0%20300.0%20L1283.5685714285714%20277.14285714285717%20M1286.0%20300.0%20L1242.4314285714286%20277.14285714285717%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1242.4314285714286%20277.14285714285717%20L1281.1371428571429%20254.28571428571428%20M1283.5685714285714%20277.14285714285717%20L1244.8628571428571%20254.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1244.8628571428571%20254.28571428571428%20L1278.7057142857143%20231.42857142857144%20M1281.1371428571429%20254.28571428571428%20L1247.2942857142857%20231.42857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1247.2942857142857%20231.42857142857144%20L1276.2742857142857%20208.57142857142856%20M1278.7057142857143%20231.42857142857144%20L1249.7257142857143%20208.57142857142856%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1249.7257142857143%20208.57142857142856%20L1273.8428571428572%20185.71428571428572%20M1276.2742857142857%20208.57142857142856%20L1252.1571428571428%20185.71428571428572%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cpath%20d%3D%22M1252.1571428571428%20185.71428571428572%20L1271.4114285714286%20162.85714285714286%20M1273.8428571428572%20185.71428571428572%20L1254.5885714285714%20162.85714285714286%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.7%22%2F%3E%3Cline%20x1%3D%221229.0%22%20y1%3D%22154.0%22%20x2%3D%221297.0%22%20y2%3D%22154.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.2%22%2F%3E%3Ccircle%20cx%3D%221229.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221246.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221280.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221297.0%22%20cy%3D%22154.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%221235.0%22%20y1%3D%22174.0%22%20x2%3D%221291.0%22%20y2%3D%22174.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.2%22%2F%3E%3Ccircle%20cx%3D%221235.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221249.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221277.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221291.0%22%20cy%3D%22174.0%22%20r%3D%221.5%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M1263.0%20140.0%20l-7.0%2012.0%20l14.0%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M1500%20300%20L1515.3%20156.0%20M1541.4%20300%20L1526.1000000000001%20156.0%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.26%22%20fill%3D%22none%22%2F%3E%3Cline%20x1%3D%221502.1882857142857%22%20y1%3D%22279.42857142857144%22%20x2%3D%221539.2117142857144%22%20y2%3D%22279.42857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221504.3765714285714%22%20y1%3D%22258.85714285714283%22%20x2%3D%221537.0234285714287%22%20y2%3D%22258.85714285714283%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221506.5648571428571%22%20y1%3D%22238.28571428571428%22%20x2%3D%221534.835142857143%22%20y2%3D%22238.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221508.7531428571428%22%20y1%3D%22217.71428571428572%22%20x2%3D%221532.6468571428572%22%20y2%3D%22217.71428571428572%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221510.9414285714286%22%20y1%3D%22197.14285714285714%22%20x2%3D%221530.4585714285713%22%20y2%3D%22197.14285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cline%20x1%3D%221513.1297142857143%22%20y1%3D%22176.57142857142856%22%20x2%3D%221528.2702857142856%22%20y2%3D%22176.57142857142856%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.9%22%2F%3E%3Cpath%20d%3D%22M1500.0%20300.0%20L1539.2117142857144%20279.42857142857144%20M1541.4%20300.0%20L1502.1882857142857%20279.42857142857144%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1502.1882857142857%20279.42857142857144%20L1537.0234285714287%20258.85714285714283%20M1539.2117142857144%20279.42857142857144%20L1504.3765714285714%20258.85714285714283%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1504.3765714285714%20258.85714285714283%20L1534.835142857143%20238.28571428571428%20M1537.0234285714287%20258.85714285714283%20L1506.5648571428571%20238.28571428571428%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1506.5648571428571%20238.28571428571428%20L1532.6468571428572%20217.71428571428572%20M1534.835142857143%20238.28571428571428%20L1508.7531428571428%20217.71428571428572%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1508.7531428571428%20217.71428571428572%20L1530.4585714285713%20197.14285714285714%20M1532.6468571428572%20217.71428571428572%20L1510.9414285714286%20197.14285714285714%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cpath%20d%3D%22M1510.9414285714286%20197.14285714285714%20L1528.2702857142856%20176.57142857142856%20M1530.4585714285713%20197.14285714285714%20L1513.1297142857143%20176.57142857142856%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%220.63%22%2F%3E%3Cline%20x1%3D%221490.1000000000001%22%20y1%3D%22168.6%22%20x2%3D%221551.3%22%20y2%3D%22168.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.08%22%2F%3E%3Ccircle%20cx%3D%221490.1000000000001%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221505.4%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221536.0%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221551.3%22%20cy%3D%22168.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Cline%20x1%3D%221495.5%22%20y1%3D%22186.6%22%20x2%3D%221545.9%22%20y2%3D%22186.6%22%20stroke%3D%22%230a1730%22%20stroke-width%3D%221.08%22%2F%3E%3Ccircle%20cx%3D%221495.5%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221508.1000000000001%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221533.3%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Ccircle%20cx%3D%221545.9%22%20cy%3D%22186.6%22%20r%3D%221.35%22%20fill%3D%22%230a1730%22%2F%3E%3Cpath%20d%3D%22M1520.7%20156.0%20l-6.3%2010.8%20l12.6%200%20z%22%20fill%3D%22%230a1730%22%2F%3E%3C%2Fsvg%3E");
+  --art-circuit:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22240%22%20height%3D%22240%22%20viewBox%3D%220%200%20240%20240%22%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%231d3a6b%22%20stroke-width%3D%221.2%22%20opacity%3D%220.5%22%3E%20%3Cpath%20d%3D%22M0%2040%20H80%20V120%20H160%20V60%20H240%22%2F%3E%20%3Cpath%20d%3D%22M0%20160%20H60%20V200%20H140%20V140%20H240%22%2F%3E%20%3Cpath%20d%3D%22M40%200%20V60%20H120%20V160%20H200%20V240%22%2F%3E%20%3Cpath%20d%3D%22M200%200%20V40%20H160%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22%232a4f8f%22%3E%20%3Ccircle%20cx%3D%2280%22%20cy%3D%2240%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%2280%22%20cy%3D%22120%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22160%22%20cy%3D%22120%22%20r%3D%223%22%2F%3E%20%3Ccircle%20cx%3D%22160%22%20cy%3D%2260%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%22160%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22140%22%20cy%3D%22200%22%20r%3D%223%22%2F%3E%20%3Ccircle%20cx%3D%22120%22%20cy%3D%2260%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%22160%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22140%22%20r%3D%223%22%2F%3E%20%3C%2Fg%3E%3C%2Fsvg%3E");
+  --art-blueprint:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%3E%20%3Cg%20stroke%3D%22%232a3f66%22%20stroke-width%3D%220.5%22%20opacity%3D%220.5%22%3E%3Cpath%20d%3D%22M60%200H0V60%22%20fill%3D%22none%22%2F%3E%3C%2Fg%3E%20%3Cg%20stroke%3D%22%232a3f66%22%20stroke-width%3D%221%22%20opacity%3D%220.7%22%3E%3Cpath%20d%3D%22M0%200H0.5M0%200V0.5%22%20fill%3D%22none%22%2F%3E%3C%2Fg%3E%20%3C%2Fsvg%3E");
+  --art-blueprint-light:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2048%2048%22%3E%20%3Cpath%20d%3D%22M48%200H0V48%22%20fill%3D%22none%22%20stroke%3D%22%239fb0d0%22%20stroke-width%3D%220.6%22%20opacity%3D%220.35%22%2F%3E%20%3C%2Fsvg%3E");
+  --art-grain:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%22120%22%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%222%22%20stitchTiles%3D%22stitch%22%2F%3E%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22120%22%20height%3D%22120%22%20filter%3D%22url%28%23n%29%22%20opacity%3D%220.5%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* ── App-wide living background (behind the transparent shell) ──────────── */
+#lux-app-bg{
+  position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+  background:
+    radial-gradient(46% 54% at 0% 0%, rgba(79,70,229,.10), transparent 60%),
+    radial-gradient(44% 50% at 100% 4%, rgba(0,212,255,.10), transparent 60%),
+    radial-gradient(52% 60% at 100% 100%, rgba(212,175,55,.08), transparent 62%),
+    var(--art-blueprint-light),
+    linear-gradient(180deg,#eef2fb 0%,#e7ecf7 60%,#eaeef9 100%);
+}
+/* transmission-tower skyline runs along the bottom of every app page too */
+#lux-app-bg::after{
+  content:''; position:absolute; left:0; right:0; bottom:0; height:34vh; max-height:340px;
+  background:var(--art-skyline) bottom center / cover no-repeat; opacity:.16;
+  -webkit-mask:linear-gradient(180deg,transparent,#000 70%);
+          mask:linear-gradient(180deg,transparent,#000 70%);
+}
+#app{position:relative; z-index:1}
+.shell{background:transparent}
+.main{background:transparent}
+/* drifting soft orbs add slow life without harming readability */
+#lux-app-bg .lux-orb{position:absolute; border-radius:50%; filter:blur(60px); opacity:.5; will-change:transform}
+#lux-app-bg .o1{width:42vw; height:42vw; left:-8vw; top:-10vw; background:radial-gradient(circle,rgba(79,70,229,.5),transparent 65%); animation:luxOrb1 26s var(--ease) infinite alternate}
+#lux-app-bg .o2{width:38vw; height:38vw; right:-10vw; top:8vw; background:radial-gradient(circle,rgba(0,212,255,.42),transparent 65%); animation:luxOrb2 32s var(--ease) infinite alternate}
+#lux-app-bg .o3{width:46vw; height:46vw; right:4vw; bottom:-16vw; background:radial-gradient(circle,rgba(212,175,55,.34),transparent 65%); animation:luxOrb3 30s var(--ease) infinite alternate}
+@keyframes luxOrb1{to{transform:translate3d(8vw,6vh,0) scale(1.15)}}
+@keyframes luxOrb2{to{transform:translate3d(-7vw,9vh,0) scale(1.1)}}
+@keyframes luxOrb3{to{transform:translate3d(-6vw,-7vh,0) scale(1.18)}}
+
+/* ── Film-grain overlay (premium texture, ultra subtle) ────────────────── */
+body::after{
+  content:''; position:fixed; inset:0; z-index:9998; pointer-events:none;
+  background-image:var(--art-grain); background-size:200px; opacity:.025; mix-blend-mode:overlay;
+}
+
+/* ── Sidenav: faint circuit traces behind the rail ─────────────────────── */
+.sidenav{position:relative; overflow:hidden}
+.sidenav::before{
+  content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background-image:var(--art-circuit); background-size:240px; opacity:.10;
+  -webkit-mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent);
+          mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent);
+  animation:luxCircuitDrift 60s linear infinite;
+}
+.sidenav > *{position:relative; z-index:1}
+@keyframes luxCircuitDrift{to{background-position:0 -480px}}
+
+/* ── Topbar: slow living gradient + brand glow ─────────────────────────── */
+.topbar{background-size:200% 200%; animation:luxChrome 18s ease infinite}
+@keyframes luxChrome{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* ── Money rows: animated gradient frame + inner glow (the payoff moment) ─ */
+.totals-box,.sr-row.final{position:relative; overflow:hidden}
+.totals-box::after,.sr-row.final::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(115deg,transparent 35%,rgba(212,175,55,.22) 50%,transparent 65%);
+  transform:translateX(-100%); animation:luxMoneyShine 4.5s var(--ease) infinite;
+}
+@keyframes luxMoneyShine{0%{transform:translateX(-100%)}55%,100%{transform:translateX(100%)}}
+.totals-row.grand .v,.sr-row.final .sr-val{text-shadow:0 0 18px rgba(212,175,55,.5)}
+
+/* ── Voltage spinner (dual counter-rotating arcs) ──────────────────────── */
+.spinner{
+  border:2.5px solid transparent;
+  border-top-color:#fff; border-right-color:rgba(0,212,255,.7);
+  filter:drop-shadow(0 0 4px rgba(0,212,255,.5));
+}
+.spinner.dark{border-top-color:var(--indigo); border-right-color:var(--gold-400)}
+
+/* ── Stat cards: pulsing accent ring ───────────────────────────────────── */
+.stat-card::after{box-shadow:0 0 0 0 rgba(0,212,255,0)}
+.stat-card:hover{animation:luxStatPulse 1.6s var(--ease) infinite}
+@keyframes luxStatPulse{0%,100%{box-shadow:var(--shadow-md)}50%{box-shadow:var(--shadow-md),0 0 26px rgba(0,212,255,.22)}}
+
+/* ── Gold button charge-ring on hover ──────────────────────────────────── */
+.btn-gold::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  box-shadow:0 0 0 0 rgba(212,175,55,.55); transition:box-shadow .4s var(--ease);
+}
+.btn-gold:hover::after{box-shadow:0 0 0 4px rgba(212,175,55,.18), 0 0 30px rgba(212,175,55,.4)}
+
+/* ████ CINEMATIC HERO — extra layers injected into .auth-wrap by JS ████████ */
+.auth-wrap{box-shadow:inset 0 0 220px 40px rgba(0,0,0,.55)}  /* vignette */
+
+/* transmission-tower skyline along the horizon (parallax-ready) */
+.lux-skyline{
+  position:absolute; left:0; right:0; bottom:0; height:58%; z-index:1; pointer-events:none;
+  background:var(--art-skyline) bottom center / cover no-repeat;
+  opacity:1; filter:brightness(1.35) drop-shadow(0 0 10px rgba(0,212,255,.55)) drop-shadow(0 0 22px rgba(212,175,55,.30));
+  -webkit-mask:linear-gradient(180deg,transparent,#000 42%);
+          mask:linear-gradient(180deg,transparent,#000 42%);
+  transform:translateY(0); transition:transform .3s var(--ease-out);
+  animation:luxSkyGlow 7s ease-in-out infinite;
+}
+@keyframes luxSkyGlow{
+  0%,100%{ filter:brightness(1.3) drop-shadow(0 0 8px rgba(0,212,255,.45)) drop-shadow(0 0 18px rgba(212,175,55,.25)); }
+  50%{ filter:brightness(1.5) drop-shadow(0 0 16px rgba(0,212,255,.7)) drop-shadow(0 0 30px rgba(212,175,55,.4)); }
+}
+.lux-horizon{ /* glowing ground line under the towers */
+  position:absolute; left:0; right:0; bottom:0; height:3px; z-index:1; pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(0,212,255,.9),rgba(212,175,55,.9),transparent);
+  filter:blur(1px); animation:luxHorizon 6s ease-in-out infinite;
+}
+@keyframes luxHorizon{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* energised busbar circuit network with travelling current */
+.lux-circuit-net{
+  position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:var(--art-circuit); background-size:200px; opacity:.18;
+  -webkit-mask:radial-gradient(circle at 50% 35%,#000,transparent 80%);
+          mask:radial-gradient(circle at 50% 35%,#000,transparent 80%);
+  animation:luxCircuitFlow 14s linear infinite;
+}
+@keyframes luxCircuitFlow{to{background-position:200px 200px}}
+
+/* slow rotating light beams (HV spotlight feel) */
+.lux-beams{
+  position:absolute; left:50%; top:40%; width:160vmax; height:160vmax; z-index:0; pointer-events:none;
+  transform:translate(-50%,-50%); opacity:.16; mix-blend-mode:screen;
+  background:conic-gradient(from 0deg,
+     transparent 0deg, rgba(0,212,255,.5) 12deg, transparent 24deg,
+     transparent 90deg, rgba(124,58,237,.5) 102deg, transparent 114deg,
+     transparent 180deg, rgba(212,175,55,.5) 192deg, transparent 204deg,
+     transparent 270deg, rgba(0,212,255,.4) 282deg, transparent 294deg, transparent 360deg);
+  animation:luxBeams 40s linear infinite;
+}
+@keyframes luxBeams{to{transform:translate(-50%,-50%) rotate(360deg)}}
+
+/* depth orbs in the hero */
+.lux-hero-orbs{position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden}
+.lux-hero-orbs span{position:absolute; border-radius:50%; filter:blur(50px); opacity:.55; will-change:transform}
+.lux-hero-orbs .h1{width:30vw;height:30vw;left:6%;top:10%;background:radial-gradient(circle,rgba(79,70,229,.7),transparent 65%);animation:luxOrb1 24s var(--ease) infinite alternate}
+.lux-hero-orbs .h2{width:26vw;height:26vw;right:4%;top:6%;background:radial-gradient(circle,rgba(0,212,255,.6),transparent 65%);animation:luxOrb2 30s var(--ease) infinite alternate}
+.lux-hero-orbs .h3{width:24vw;height:24vw;right:16%;bottom:8%;background:radial-gradient(circle,rgba(212,175,55,.5),transparent 65%);animation:luxOrb3 28s var(--ease) infinite alternate}
+
+/* hero heading shimmer for the logo title */
+.auth-wrap .auth-logo h1{
+  background:linear-gradient(100deg,#fff 0%,#dfe9ff 35%,var(--cyan) 55%,var(--gold-pale) 80%,#fff 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent;
+  animation:luxShimmer 6s linear infinite;
+}
+@keyframes luxShimmer{to{background-position:-220% 0}}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .auth-wrap .auth-logo h1{-webkit-text-fill-color:#fff; color:#fff}
+}
+
+/* ── Honour reduced motion across the maximalist layer ─────────────────── */
+@media (prefers-reduced-motion: reduce){
+  #lux-app-bg .lux-orb,.sidenav::before,.topbar,.totals-box::after,.sr-row.final::after,
+  .lux-circuit-net,.lux-beams,.lux-hero-orbs span,.lux-horizon,.auth-wrap .auth-logo h1,
+  .stat-card:hover{animation:none !important}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ ENERGY LOADER ✦  — replaces the bare spinning circle. A glowing
+   high-voltage bolt held inside two counter-rotating energy arcs, centred
+   in the content area. Light-theme, print-irrelevant (screen only).
+   ════════════════════════════════════════════════════════════════════════ */
+.lux-loader{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; min-height:60vh; width:100%;
+}
+.lux-loader .orbit{ position:relative; width:84px; height:84px }
+.lux-loader .ring,.lux-loader .ring2{ position:absolute; inset:0; border-radius:50% }
+.lux-loader .ring{
+  background:conic-gradient(from 0deg, transparent 0 18%, var(--cyan) 46%, var(--indigo) 72%, transparent 92% 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  animation:luxSpinA 1s linear infinite;
+  filter:drop-shadow(0 0 6px rgba(0,212,255,.35));
+}
+.lux-loader .ring2{
+  inset:12px;
+  background:conic-gradient(from 200deg, transparent 0 58%, var(--gold-400) 84%, transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation:luxSpinA 1.5s linear infinite reverse;
+}
+.lux-loader .bolt{
+  position:absolute; inset:0; pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M13%202L4%2014h6l-1%208%209-12h-6z'%20fill='%23D4AF37'/%3E%3C/svg%3E") center / 26px no-repeat;
+  filter:drop-shadow(0 0 9px rgba(212,175,55,.65));
+  animation:luxBoltPulse 1.15s ease-in-out infinite;
+}
+@keyframes luxSpinA{ to{ transform:rotate(360deg) } }
+@keyframes luxBoltPulse{ 0%,100%{ transform:scale(1); opacity:.92 } 50%{ transform:scale(1.14); opacity:1 } }
+.lux-loader .label{
+  font-family:var(--font-heading); font-size:13px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--steel-600);
+  background:linear-gradient(100deg,var(--steel-600) 0%,var(--indigo) 45%,var(--cyan) 60%,var(--steel-600) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  animation:luxShimmer 2.4s linear infinite;
+}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .lux-loader .label{ -webkit-text-fill-color:currentColor; color:var(--steel-600) }
+}
+@media (prefers-reduced-motion: reduce){
+  .lux-loader .ring,.lux-loader .ring2,.lux-loader .bolt,.lux-loader .label{ animation:none !important }
+}
 
 /* ── Download / export action cluster polish (within existing structure) ── */
 .ws-toolbar-exports .btn,.collapse .btn-gold{ position:relative }
@@ -1069,8 +1168,8 @@ input:focus,select:focus,textarea:focus{
 
 /* ── Final Estimate (ZEST03) preview ─────────────────────────────────── */
 .fe-preview{ width:100%; border-collapse:collapse; font-size:12px; }
-.fe-preview th{ background:#F2EDE4; color:#241F1B; font-weight:700; text-align:left; padding:6px 8px; border:1px solid #C4B7A4; white-space:normal; }
-.fe-preview td{ padding:5px 8px; border:1px solid #DED4C4; vertical-align:top; }
+.fe-preview th{ background:#EFF1F4; color:#1F2937; font-weight:700; text-align:left; padding:6px 8px; border:1px solid #B7BEC9; white-space:normal; }
+.fe-preview td{ padding:5px 8px; border:1px solid #D5DAE1; vertical-align:top; }
 .fe-preview td.num-cell{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:92px; }
 /* Description and Mat/Service Full Description share identical formatting.
    The 80 : 150 proportion is a sizing HINT under table-layout:auto — never a
@@ -1095,24 +1194,24 @@ input:focus,select:focus,textarea:focus{
 }
 .fe-preview{ overflow:visible; }
 .fe-preview .table-wrap, .table-wrap:has(.fe-preview){ overflow-x:auto; }
-.fe-preview tr.fe-total td{ background:#EDE6DA; font-weight:700; color:#241F1B; }
+.fe-preview tr.fe-total td{ background:#E9EBEE; font-weight:700; color:#1F2937; }
 /* Amount in words — one merged cell across the full table width, set larger
    and bold so it reads as the closing line of the section. Preview only. */
 .fe-preview tr.fe-words-row td.fe-words{
-  background:#F9F3E9; color:#2A231D; font-weight:800; font-size:15px;
+  background:#F4F7FC; color:#12203A; font-weight:800; font-size:15px;
   font-style:italic; letter-spacing:.01em; text-align:left;
   padding:11px 12px; white-space:normal; word-break:break-word;
 }
 @media (max-width:640px){ .fe-preview tr.fe-words-row td.fe-words{ font-size:13.5px; padding:9px 10px; } }
-.fe-preview tbody tr:nth-child(even) td:not(.fe-total td){ background:#FBF8F2; }
+.fe-preview tbody tr:nth-child(even) td:not(.fe-total td){ background:#F7F8FA; }
 
 /* ── Rich-text editor (T-Code / Process descriptions) ──────────────────── */
 .rich-editor{ border:1px solid var(--line); border-radius:var(--radius-md); overflow:hidden; background:#fff; }
-.rich-toolbar{ display:flex; gap:2px; flex-wrap:wrap; padding:5px 6px; background:var(--surface-2,#F7F3EB); border-bottom:1px solid var(--line); }
-.rich-toolbar button, .rich-toolbar select{ font-size:13px; min-width:30px; height:28px; padding:0 7px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; color:var(--ink,#241F1B); }
-.rich-toolbar button:hover{ background:var(--gold-pale,#F1DDCF); }
+.rich-toolbar{ display:flex; gap:2px; flex-wrap:wrap; padding:5px 6px; background:var(--surface-2,#f4f6f9); border-bottom:1px solid var(--line); }
+.rich-toolbar button, .rich-toolbar select{ font-size:13px; min-width:30px; height:28px; padding:0 7px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; color:var(--ink,#1f2937); }
+.rich-toolbar button:hover{ background:var(--gold-pale,#f7e7a1); }
 .rich-body{ min-height:96px; max-height:260px; overflow-y:auto; padding:9px 11px; font-size:14px; line-height:1.5; outline:none; }
-.rich-body:focus{ box-shadow:inset 0 0 0 2px var(--gold-400,#B4633A); }
+.rich-body:focus{ box-shadow:inset 0 0 0 2px var(--gold-400,#d4af37); }
 .rich-body ul, .rich-body ol{ margin:4px 0 4px 20px; }
 .rich-cell{ font-size:13px; line-height:1.45; }
 .rich-cell ul, .rich-cell ol{ margin:2px 0 2px 18px; }
@@ -1121,9 +1220,9 @@ input:focus,select:focus,textarea:focus{
 /* ── Abstract: sub-entries (1A/1B) indented; subtotals bold but unhighlighted ── */
 .sr-row.sr-subentry{ background:transparent; }
 .sr-row.sr-subentry .sr-no{ opacity:.7; font-size:.85em; }
-.sr-row.sr-subentry .sr-label{ padding-left:22px; color:var(--steel-600,#6F6356); font-size:.95em; }
-.sr-row.sr-subentry .sr-val{ color:var(--steel-600,#6F6356); }
-.sr-row.sr-subtotal-lite{ background:transparent; font-weight:700; border-top:1px solid var(--line,#E7DDCD); }
+.sr-row.sr-subentry .sr-label{ padding-left:22px; color:var(--steel-600,#54627e); font-size:.95em; }
+.sr-row.sr-subentry .sr-val{ color:var(--steel-600,#54627e); }
+.sr-row.sr-subtotal-lite{ background:transparent; font-weight:700; border-top:1px solid var(--line,#e2e7f0); }
 .sr-row.sr-subtotal-lite .sr-val{ font-weight:700; }
 
 /* ── Perf: skip rendering off-screen list rows (long dashboards/order book) ── */
@@ -1158,18 +1257,18 @@ input:focus,select:focus,textarea:focus{
 }
 
 /* ── AI page segmented tabs ─────────────────────────────────────────────── */
-.seg-tabs{ display:flex; gap:6px; background:var(--surface-2,#F7F3EB); padding:5px; border-radius:12px; flex-wrap:wrap; }
+.seg-tabs{ display:flex; gap:6px; background:var(--surface-2,#eef1f6); padding:5px; border-radius:12px; flex-wrap:wrap; }
 .seg-tab{ flex:1 1 auto; min-width:150px; padding:9px 14px; border:none; background:transparent; border-radius:9px;
-  font-weight:600; font-size:13px; color:var(--steel-600,#6F6356); cursor:pointer; transition:all .15s var(--ease-out); }
+  font-weight:600; font-size:13px; color:var(--steel-600,#54627e); cursor:pointer; transition:all .15s var(--ease-out); }
 .seg-tab:hover{ background:rgba(255,255,255,.6); }
-.seg-tab.active{ background:#fff; color:var(--ink,#241F1B); box-shadow:0 1px 4px rgba(36,31,27,.10); }
+.seg-tab.active{ background:#fff; color:var(--ink,#1f2937); box-shadow:0 1px 4px rgba(16,24,40,.1); }
 
 /* ── Signatory editor mini toggle ── */
 .toggle-mini{ position:relative; display:inline-block; width:34px; height:20px; flex:0 0 auto; cursor:pointer; }
 .toggle-mini input{ opacity:0; width:0; height:0; position:absolute; }
-.toggle-mini span{ position:absolute; inset:0; background:#D4C7B3; border-radius:20px; transition:.15s; }
+.toggle-mini span{ position:absolute; inset:0; background:#c7ccd6; border-radius:20px; transition:.15s; }
 .toggle-mini span::before{ content:''; position:absolute; width:16px; height:16px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.15s; }
-.toggle-mini input:checked + span{ background:var(--gold,#B4633A); }
+.toggle-mini input:checked + span{ background:var(--gold,#c69a3f); }
 .toggle-mini input:checked + span::before{ transform:translateX(14px); }
 .sig-row.is-hidden{ opacity:.5; }
 
@@ -1192,8 +1291,8 @@ input:focus,select:focus,textarea:focus{
   text-align:center; vertical-align:bottom;
   padding:16px 8px 8px; font-size:12px; line-height:1.4;
 }
-.fe-sig .fe-sig-title{ font-weight:700; color:#2A231D; }
-.fe-sig .fe-sig-office{ color:#241F1B; }
+.fe-sig .fe-sig-title{ font-weight:700; color:#12203A; }
+.fe-sig .fe-sig-office{ color:#1F2937; }
 
 @media print{
   /* Only the portal prints. */
@@ -1231,7 +1330,7 @@ input:focus,select:focus,textarea:focus{
   #fe-print-portal .fe-preview tr{ break-inside:avoid; page-break-inside:avoid; }
   #fe-print-portal .fe-preview th,
   #fe-print-portal .fe-preview td{
-    padding:3px 4px; border:1px solid #C4B7A4;
+    padding:3px 4px; border:1px solid #B7BEC9;
     word-break:break-word; overflow-wrap:anywhere; overflow:visible;
   }
   #fe-print-portal .fe-preview td.fe-desc-cell, #fe-print-portal .fe-preview th.fe-desc-cell,
@@ -1264,9 +1363,9 @@ input:focus,select:focus,textarea:focus{
 /* Non-SOR item rows — light yellow, so they are obvious at the foot of the
    Supply and O&M sections. Kept lighter than the TOTAL band above them. */
 .fe-preview tbody tr.fe-nonsor td,
-.fe-preview tbody tr:nth-child(even) tr.fe-nonsor td{ background:#FBF0DA !important; }
+.fe-preview tbody tr:nth-child(even) tr.fe-nonsor td{ background:#FFF8DC !important; }
 @media print{ #fe-print-portal .fe-preview tbody tr.fe-nonsor td{
-  background:#FBF0DA !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+  background:#FFF8DC !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 
 
 /* ZEST03 preview — total rows.
@@ -1280,7 +1379,7 @@ input:focus,select:focus,textarea:focus{
   font-size:calc(1em + 2pt); font-weight:800; white-space:nowrap;
 }
 
-.ok-text{ color:var(--ok-500,#3D7A57); font-weight:600; }
+.ok-text{ color:var(--ok-500,#0f7b45); font-weight:600; }
 
 /* ── Build stamp ────────────────────────────────────────────────────────
    Tiny, fixed, low-contrast. Its only job is to answer "is the live site
@@ -1289,6 +1388,340 @@ input:focus,select:focus,textarea:focus{
 #build-stamp{
   position:fixed; right:8px; bottom:6px; z-index:9998;
   font-family:var(--font-mono, monospace); font-size:9.5px; letter-spacing:.04em;
-  color:var(--steel-600,#6F6356); opacity:.4; pointer-events:none; user-select:none;
+  color:var(--steel-600,#54627e); opacity:.4; pointer-events:none; user-select:none;
 }
 @media print{ #build-stamp{ display:none } }
+
+/* ████████████████████████████████████████████████████████████████████████
+   ✦✦ STRUCTURE LAYER ✦✦
+   Layout only. No colour, no theme, no new ornament — everything above this
+   line is the stylesheet you already had, unchanged.
+
+   This layer re-organises the page purely through CSS. No markup, no render
+   code, no flow, no options are touched. It works by taking containers that
+   the HTML already emits and giving them a real layout system:
+
+     · #main-content becomes a flow container with one spacing scale, so the
+       ad-hoc inline margin-bottoms stop fighting each other
+     · .est-card becomes a GRID, so every row in a list shares column tracks
+       and the money column actually lines up down the page
+     · tables get a scroll frame with a pinned header and room to breathe
+     · toolbars and tab strips pin while long data scrolls under them
+     · option lists, field rows and button clusters get even tracks instead
+       of ragged wraps
+
+   Written to sit last so it wins on cascade order without needing !important,
+   except in the few places where it has to beat an inline style attribute.
+   ████████████████████████████████████████████████████████████████████████ */
+
+/* ── One spacing scale ──────────────────────────────────────────────────
+   Blocks are emitted with assorted inline margin-bottoms (16px here, 18px
+   there, none elsewhere). Turning the page into a flex column with a single
+   gap makes the rhythm uniform; the !important zeroes the inline margins so
+   they don't stack on top of the gap. ── */
+:root{
+  --gap-block:18px;      /* between top-level page blocks */
+  --gap-tight:12px;      /* inside grouped clusters       */
+  --page-max:1460px;     /* stops data running edge-to-edge on wide screens */
+}
+.main{display:block}
+#main-content{
+  display:flex; flex-direction:column; gap:var(--gap-block);
+  max-width:var(--page-max); margin-inline:auto; width:100%;
+}
+#main-content > *{margin-top:0 !important; margin-bottom:0 !important}
+#main-content > .card + .card{margin-top:0}
+/* nested blocks that carry their own inline spacing keep it — only the
+   top-level rhythm is normalised */
+
+/* ── Page head: title block left, controls right, always ────────────────
+   Currently a flex row that collapses unpredictably when the second child is
+   a <select> instead of a button. A two-track grid makes it deterministic. ── */
+.page-head{
+  display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end;
+  gap:12px 20px; padding-bottom:14px; border-bottom:1px solid var(--line);
+}
+.page-head > *{min-width:0}
+.page-head > div:first-child{min-width:0}
+.page-title{line-height:1.25}
+.page-sub{max-width:70ch}
+/* any trailing cluster of controls stays on one line and right-aligns */
+.page-head > .flex,
+.page-head > div:last-child:not(:first-child){
+  display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center;
+}
+@media(max-width:720px){
+  .page-head{grid-template-columns:1fr; align-items:stretch}
+  .page-head > .flex,
+  .page-head > div:last-child:not(:first-child){justify-content:flex-start}
+}
+
+/* ── Stat strip: never squash, never orphan ─────────────────────────────
+   repeat(4,1fr) forces four columns even at 320px. auto-fit with a floor
+   lets the browser choose 4 / 2 / 1 based on the space actually available. ── */
+.stats-grid{
+  display:grid; gap:12px;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+}
+.stat-card{justify-content:flex-start; min-width:0}
+.stat-val{overflow-wrap:anywhere}
+@media(max-width:880px){
+  .stats-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+}
+
+/* ── Filter / search bar: input takes the room, controls hold their size ── */
+.card-tight > .flex.items-center{gap:10px; align-items:center}
+.card-tight > .flex.items-center > .field{flex:1 1 260px; min-width:0}
+.card-tight > .flex.items-center > .btn{flex:0 0 auto}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ESTIMATE LISTS — the main structural change
+   Rows were flex, so each row sized its own columns from its own content:
+   serial, icon, name, amount and actions all landed at different x positions
+   down the list, and long names pushed the amounts around. As a grid with
+   fixed tracks, every row in a list shares the same column geometry — the
+   amount column becomes a true column you can read straight down.
+   ════════════════════════════════════════════════════════════════════════ */
+.est-list{gap:0}
+.est-card{
+  display:grid;
+  /* rail | sno | icon | main | total | actions   (:has adds the checkbox) */
+  grid-template-columns:3px 30px 38px minmax(0,1fr) minmax(140px,auto) auto;
+  align-items:center; column-gap:14px; row-gap:0;
+  padding:14px 18px 14px 0;
+}
+.est-card:has(.est-check){
+  grid-template-columns:3px auto 30px 38px minmax(0,1fr) minmax(140px,auto) auto;
+}
+.est-card::before{grid-row:1; margin-right:0; align-self:stretch}
+.est-card .est-check{justify-self:center}
+.est-card .est-sno{width:auto; justify-self:center}
+.est-card .est-main{min-width:0}
+.est-card .est-name{min-width:0}
+/* the meta line is a label strip — let it wrap as a unit, not mid-token */
+.est-card .est-meta{row-gap:4px}
+.est-card .est-meta > *{flex:0 0 auto}
+.est-card .est-total{justify-self:end; text-align:right; white-space:nowrap}
+.est-card .est-actions{justify-self:end; flex:none}
+
+/* Phone: two clean lines — identity above, money + actions below — with the
+   rail still running the full height of the wrapped row. */
+@media(max-width:680px){
+  .est-card{
+    grid-template-columns:3px 26px minmax(0,1fr) auto;
+    grid-template-areas:
+      "rail sno  main  main"
+      "rail .    total acts";
+    column-gap:10px; row-gap:8px; padding:13px 12px 13px 0;
+  }
+  .est-card:has(.est-check){
+    grid-template-columns:3px auto 26px minmax(0,1fr) auto;
+    grid-template-areas:
+      "rail chk sno  main  main"
+      "rail chk .    total acts";
+  }
+  .est-card::before{grid-area:rail}
+  .est-card .est-check{grid-area:chk}
+  .est-card .est-sno{grid-area:sno}
+  .est-card .est-main{grid-area:main}
+  .est-card .est-total{grid-area:total; justify-self:start; text-align:left}
+  .est-card .est-actions{grid-area:acts; justify-self:end}
+  .est-card .est-icon{display:none}
+}
+
+/* Category sections: give each group a real head-and-body relationship */
+.dash-cat-section{
+  border:1px solid var(--line); border-radius:var(--radius-lg);
+  background:var(--surface); padding:14px 16px 6px; box-shadow:var(--shadow-sm);
+}
+.dash-cat-head{margin-bottom:6px}
+.dash-cat-section > .est-list{margin:0 -16px}
+.dash-cat-section > .est-list .est-card{padding-left:0; padding-right:16px}
+.dash-cat-section > .est-list .est-card::before{margin-left:0}
+.fy-collapse{background:var(--surface-2)}
+.fy-collapse .est-list{margin:0}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TABLES — a scroll frame with a pinned header
+   thead th was already position:sticky, but nothing above it scrolled, so it
+   never pinned. Giving .table-wrap a height budget turns it into the scroll
+   container and the header finally does its job. Cells also get vertical
+   room — this is the "space for data" part.
+   ════════════════════════════════════════════════════════════════════════ */
+.table-wrap{
+  overflow:auto; max-height:min(68vh,760px);
+  scrollbar-gutter:stable;
+  background:var(--surface);
+}
+/* the Final Estimate preview is a document, not a viewport — never cage it */
+.table-wrap:has(.fe-preview),
+#fe-result .table-wrap,
+#fe-print-portal .table-wrap{max-height:none; overflow-x:auto; overflow-y:visible}
+
+thead th{box-shadow:0 1px 0 var(--line-strong)}
+tbody td{padding:11px 14px; line-height:1.45}
+thead th{padding:11px 14px}
+/* numeric columns never wrap and hold a common width so digits align */
+.num-cell{min-width:112px; padding-right:16px}
+thead th.num-cell{text-align:right}
+/* description columns get the room instead */
+tbody td:nth-child(2){min-width:220px}
+/* zebra makes long item lists scannable across many columns */
+tbody tr:nth-child(even) > td{background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+tbody tr:hover > td{background:var(--surface-2)}
+.qty-input,.qty-stepper{margin:0}
+
+/* A card whose only job is to hold a table shouldn't pad it in twice */
+.card:has(> .table-wrap){padding:0; overflow:hidden}
+.card:has(> .table-wrap) > .card-head{padding:16px 18px 12px; margin-bottom:0}
+.card:has(> .table-wrap) > .table-wrap{border:none; border-radius:0; border-top:1px solid var(--line)}
+.card:has(> .table-wrap) > .totals-box{margin:0; border-radius:0}
+
+/* ── Totals: pin to the foot of the section it totals ───────────────────── */
+.totals-box{
+  position:sticky; bottom:0; z-index:3;
+  box-shadow:0 -6px 18px rgba(7,17,31,.14);
+}
+.totals-row{gap:24px}
+.totals-row .v{margin-left:auto}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PINNED CHROME — tab strip and toolbar stay reachable while data scrolls.
+   .main is the scroll container (overflow-y:auto), so top:0 pins to it.
+   ════════════════════════════════════════════════════════════════════════ */
+@media(min-width:881px){
+  #ws-tabs,
+  .seg-tabs{
+    position:sticky; top:0; z-index:22;
+    background:var(--surface-2);
+    -webkit-backdrop-filter:saturate(140%) blur(8px); backdrop-filter:saturate(140%) blur(8px);
+    padding-top:8px; margin-top:-8px;
+  }
+  .ws-toolbar{position:sticky; top:0; z-index:24}
+}
+#main-content > *{scroll-margin-top:64px}
+
+/* Workspace toolbar: primary actions left, exports pushed to the right edge */
+.ws-toolbar{
+  display:flex; align-items:center; gap:10px 16px;
+  padding:10px 14px;
+}
+.ws-toolbar-group{flex:1 1 auto; min-width:0}
+.ws-toolbar-exports{margin-left:auto; flex:0 0 auto}
+@media(max-width:880px){
+  .ws-toolbar-exports{margin-left:0}
+}
+
+/* ── Tab strip: even, tappable, no ragged overflow ── */
+.tabs{gap:2px; padding-bottom:0}
+.tab{flex:0 0 auto}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORMS — even tracks instead of ragged wraps
+   ════════════════════════════════════════════════════════════════════════ */
+.field-row{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:0 14px; align-items:start;
+}
+.field-row > *{flex:initial; min-width:0}
+@media(max-width:480px){.field-row{grid-template-columns:1fr}}
+
+/* SOR version / option checkboxes: a grid reads as a set, a wrap reads as
+   leftovers. Tracks size to the longest label, then repeat. */
+.check-option-list{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:10px;
+}
+.check-option{flex:initial; min-width:0}
+.check-option .opt-label{white-space:normal; overflow-wrap:anywhere}
+
+/* Radio pills and button clusters share one alignment */
+.radio-pill-group{gap:8px}
+
+/* PMO / PR entries and charge grids scale with the space they're given */
+.pmo-pr-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.stages-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); column-gap:28px}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ABSTRACT — a document with three true columns
+   ════════════════════════════════════════════════════════════════════════ */
+.sr-row{
+  grid-template-columns:44px minmax(0,1fr) minmax(170px,auto);
+  column-gap:14px; padding:12px 18px; align-items:baseline;
+}
+.sr-row .sr-val{justify-self:end}
+.sr-row.final{padding:16px 18px; margin-top:6px}
+.awords-box{margin-top:12px}
+@media(max-width:480px){
+  .sr-row{grid-template-columns:30px minmax(0,1fr); row-gap:4px; padding:11px 12px}
+  .sr-row .sr-val{grid-column:2; justify-self:start}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PANELS — collapsibles read as one stack, not a pile
+   ════════════════════════════════════════════════════════════════════════ */
+.collapse{margin-bottom:0; background:var(--surface)}
+.collapse-head{padding:14px 18px; gap:12px}
+.collapse-body-inner{padding:6px 18px 18px}
+/* consecutive collapsibles merge into a single bordered group */
+.collapse + .collapse{border-top-left-radius:0; border-top-right-radius:0; border-top:none; margin-top:-1px}
+.collapse:has(+ .collapse){border-bottom-left-radius:0; border-bottom-right-radius:0}
+
+/* Cards: give content a measure so paragraphs don't run 200 characters wide */
+.card-head{margin-bottom:14px}
+.card .hint,.card > p.text-sm{max-width:88ch}
+
+/* Button clusters inside panels wrap evenly and keep a consistent gutter */
+.collapse-body-inner > .flex.gap-2{gap:10px; row-gap:10px}
+.bottom-action-bar{gap:10px; padding:12px 14px}
+.bottom-action-bar .btn{flex:0 0 auto}
+@media(max-width:880px){.bottom-action-bar .btn{flex:1 1 auto}}
+
+/* ── Modal: header pinned, body scrolls, actions pinned ─────────────────
+   Long modals currently scroll their title out of view and bury the confirm
+   button at the bottom of the scroll. ── */
+.modal{display:flex; flex-direction:column; gap:0; padding:0; max-height:min(88vh,860px)}
+.modal > *{flex:0 0 auto}
+.modal > .modal-head{
+  position:sticky; top:0; z-index:2; margin:0;
+  padding:18px 22px 14px; background:var(--surface); border-bottom:1px solid var(--line);
+}
+.modal > *:not(.modal-head):not(.flex){padding-inline:22px}
+.modal > *:nth-child(2){padding-top:16px}
+.modal > .flex:last-child{
+  position:sticky; bottom:0; z-index:2; margin:0;
+  padding:14px 22px 18px; background:var(--surface); border-top:1px solid var(--line);
+}
+.modal > *:last-child:not(.flex){padding-bottom:20px}
+.modal .field-row{gap:0 14px}
+
+/* ── Sidenav: pinned rail with its own scroll ───────────────────────────── */
+@media(min-width:881px){
+  .sidenav{
+    position:sticky; top:58px; align-self:flex-start;
+    height:calc(100vh - 58px); overflow-y:auto; overscroll-behavior:contain;
+  }
+  .sidenav::-webkit-scrollbar{width:6px}
+}
+
+/* ── Image grid + lightbox: consistent tiles ────────────────────────────── */
+.img-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px}
+.img-tile img{height:112px}
+
+/* ── Empty states get vertical presence instead of floating ─────────────── */
+.empty-state{padding:64px 24px; border-radius:var(--radius-lg)}
+
+/* ── ZEST03 preview: room for the two description columns ───────────────── */
+.fe-preview th,.fe-preview td{padding:7px 10px}
+.fe-preview td.num-cell{min-width:104px}
+
+/* ── Wide screens: the page stops growing, the data doesn't get thinner ── */
+@media(min-width:1600px){
+  .main{padding-inline:40px}
+}
+@media(max-width:880px){
+  #main-content{gap:14px}
+  .est-card{column-gap:10px}
+  .table-wrap{max-height:none}
+  .totals-box{position:static}
+}
