@@ -1879,3 +1879,253 @@ tbody td:nth-child(2){min-width:230px}
   .modal > *:not(.modal-head){padding-inline:18px}
   .modal > .modal-head{padding:16px 18px 14px !important}
 }
+
+/* ████████████████████████████████████████████████████████████████████████
+   ✦✦ v4 — DEPTH LAYER ✦✦
+   Sits after v3. Three jobs:
+     1. a fluid scale, so nothing is tuned to one screen width
+     2. mobile as a real layout — sticky column tables, bottom-sheet modals,
+        safe-area insets, 44px targets — not a stacked desktop
+     3. a PRINT GUARD at the end, which the previous layers needed and
+        didn't have (see the note above §26 — this was a live bug)
+   ████████████████████████████████████████████████████████████████████████ */
+
+/* ═══════════════ 21 · FLUID FOUNDATION ══════════════════════════════════
+   Fixed px sizing means every value is correct at exactly one width. clamp()
+   ties the scale to the viewport with a floor and a ceiling, so 360px and
+   2560px both get deliberate spacing instead of one being an accident.
+   ═════════════════════════════════════════════════════════════════════════ */
+:root{
+  --gap-block:clamp(14px,1.5vw,22px);
+  --pad-page:clamp(14px,2.6vw,44px);
+  --pad-card:clamp(15px,1.6vw,24px);
+  --r-card:clamp(12px,1vw,18px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+}
+html{-webkit-text-size-adjust:100%; text-size-adjust:100%}
+body{overscroll-behavior-y:none; accent-color:var(--gold-500)}
+.main{
+  padding:clamp(16px,2vw,26px) var(--pad-page) calc(96px + var(--safe-b));
+  padding-left:max(var(--pad-page),var(--safe-l));
+  padding-right:max(var(--pad-page),var(--safe-r));
+  scroll-behavior:smooth;
+}
+.card{padding:var(--pad-card)}
+.page-title{font-size:clamp(19px,2.1vw,27px)}
+.page-sub{font-size:clamp(12.5px,1vw,14px)}
+.stat-val{font-size:clamp(19px,2.4vw,28px)}
+.est-card .est-total{font-size:clamp(13.5px,1.3vw,16px)}
+.totals-row.grand{font-size:clamp(15px,1.6vw,19px)}
+
+/* consistent focus treatment for keyboard users on every interactive thing */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible,.est-card:focus-visible,
+.check-option:focus-visible,.collapse-head:focus-visible{
+  outline:2px solid var(--gold-500); outline-offset:2px; border-radius:6px;
+}
+
+/* ═══════════════ 22 · TABLES ON SMALL SCREENS ═══════════════════════════
+   A ten-column item table cannot become readable on a 360px screen by
+   stacking — the columns are a matrix and stacking destroys the comparison.
+   The honest answer is horizontal scroll with the identifying column pinned,
+   so you always know which row you are reading across.
+
+   Zebra is switched to an OPAQUE colour here, because a pinned cell with a
+   translucent background lets the scrolling columns show through it.
+   ═════════════════════════════════════════════════════════════════════════ */
+tbody tr:nth-child(even) > td{background:var(--surface-2)}
+tbody tr:hover > td{background:var(--surface-3)}
+
+@media(max-width:880px){
+  .table-wrap{
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain; scrollbar-width:thin;
+  }
+  /* pin the first column — but never on the Final Estimate document,
+     which must stay a plain flowing table for print */
+  .table-wrap:not(:has(.fe-preview)) thead th:first-child,
+  .table-wrap:not(:has(.fe-preview)) tbody td:first-child{
+    position:sticky; left:0; z-index:2;
+  }
+  .table-wrap:not(:has(.fe-preview)) thead th:first-child{
+    z-index:5; background:var(--navy-900);
+  }
+  .table-wrap:not(:has(.fe-preview)) tbody td:first-child{
+    background:var(--surface);
+    box-shadow:1px 0 0 var(--line), 7px 0 11px -7px rgba(13,22,40,.28);
+  }
+  .table-wrap:not(:has(.fe-preview)) tbody tr:nth-child(even) > td:first-child{background:var(--surface-2)}
+  .table-wrap:not(:has(.fe-preview)) tbody tr:hover > td:first-child{background:var(--surface-3)}
+  thead th,tbody td{padding:11px 13px; white-space:nowrap}
+  tbody td:nth-child(2){white-space:normal; min-width:190px}
+  .num-cell{min-width:104px}
+}
+
+/* ═══════════════ 23 · MOBILE CHROME ═════════════════════════════════════ */
+@media(max-width:880px){
+  /* the nav strip scrolls; snap points stop it resting mid-item, and the
+     mask tells you there is more to the right */
+  .mobile-nav{
+    scroll-snap-type:x proximity; scroll-padding-inline:8px;
+    -webkit-mask:linear-gradient(90deg,#000 88%,transparent);
+            mask:linear-gradient(90deg,#000 88%,transparent);
+  }
+  .mnav-item{scroll-snap-align:start; min-height:38px; padding:8px 14px}
+
+  /* touch targets — 44px is the floor below which taps start missing */
+  .btn{min-height:44px; padding:11px 16px}
+  .btn-sm{min-height:38px}
+  .btn-xs{min-height:30px; padding:6px 10px}
+  input,select,textarea{min-height:46px; font-size:16px}  /* 16px stops iOS zooming on focus */
+  .qty-stepper button{width:38px; min-height:40px}
+  .toggle-track{width:46px; height:26px}
+  .toggle-track::after{width:22px; height:22px}
+  .toggle.on .toggle-track::after{transform:translateX(20px)}
+  .est-card .est-actions .btn{min-height:36px}
+
+  .bottom-action-bar{
+    padding-bottom:calc(12px + var(--safe-b)) !important;
+    left:max(10px,var(--safe-l)); right:max(10px,var(--safe-r));
+  }
+  .page-head{padding-bottom:13px}
+  .page-head::after{width:44px}
+}
+
+/* Bottom-sheet modals — a centred dialog on a phone wastes the safe area and
+   puts the actions under the thumb-shadow. A sheet rises from the edge. */
+@media(max-width:640px){
+  .modal-backdrop{align-items:flex-end; padding:0 !important}
+  .modal{
+    max-width:none !important; width:100%;
+    border-radius:22px 22px 0 0; max-height:92dvh;
+    animation:sheetUp .34s var(--ease-out);
+    padding-bottom:var(--safe-b) !important;
+  }
+  .modal > .modal-head{padding-top:26px !important}
+  .modal > .modal-head::before{            /* grab handle */
+    content:''; position:absolute; top:9px; left:50%; transform:translateX(-50%);
+    width:38px; height:4px; border-radius:99px; background:var(--line-strong);
+  }
+  .modal > .flex:last-child{padding-bottom:calc(18px + var(--safe-b)) !important}
+  .modal > .flex:last-child .btn{flex:1 1 auto}
+}
+@keyframes sheetUp{from{transform:translateY(100%)} to{transform:none}}
+
+/* Very narrow — 360px and below */
+@media(max-width:400px){
+  .est-card .est-icon{display:none}
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .page-head > .flex .btn,
+  .page-head > .toolbar-actions .btn{flex:1 1 auto}
+  .tab{padding:10px 12px; font-size:12px}
+}
+
+/* ═══════════════ 24 · DESKTOP REFINEMENT ════════════════════════════════ */
+/* hover effects only where a pointer can actually hover — on touch these
+   states latch after a tap and leave rows looking selected */
+@media(hover:hover) and (pointer:fine){
+  .est-card:hover{background:var(--surface-2)}
+  .est-card:hover .est-name{color:var(--navy-900)}
+  .nav-item:hover{transform:translateX(2px)}
+  tbody tr:hover > td{transition:background .12s var(--ease)}
+  .img-tile:hover img{transform:scale(1.04)}
+  .img-tile{overflow:hidden}
+  .img-tile img{transition:transform .35s var(--ease-out)}
+}
+@media(hover:none){
+  .card.hoverable:hover,.stat-card:hover,.btn:hover,.check-option:hover{transform:none}
+}
+
+@media(min-width:1280px){
+  .stats-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .est-card{column-gap:18px; padding-right:22px}
+  .field-row{gap:0 20px}
+  .collapse-body-inner{padding:20px 24px 24px}
+}
+@media(min-width:1700px){
+  #main-content{gap:24px}
+  .card{padding:26px 28px}
+}
+
+/* scrollbars stop being an OS afterthought */
+*{scrollbar-width:thin; scrollbar-color:var(--line-strong) transparent}
+::-webkit-scrollbar{width:11px; height:11px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{
+  background:var(--line-strong); border-radius:99px; border:3px solid var(--surface-2);
+}
+::-webkit-scrollbar-thumb:hover{background:var(--steel-400)}
+.table-wrap::-webkit-scrollbar-thumb{border-color:var(--surface)}
+
+/* ═══════════════ 25 · ORGANISATION CUES ═════════════════════════════════
+   Depth of field: page > section > card > row. Each level differs in
+   elevation and border weight so the eye can tell nesting at a glance.
+   ═════════════════════════════════════════════════════════════════════════ */
+.dash-cat-section > .card,
+.collapse-body-inner > .card{box-shadow:none; background:var(--surface-2); border-color:var(--line)}
+.collapse-body-inner .table-wrap{box-shadow:none}
+.card-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.card-head > .flex{margin-left:auto}
+
+/* a hairline leader connects a label to its value across the abstract */
+.sr-row:not(.final):not(.subtotal) .sr-label{position:relative}
+.sr-row .sr-val{font-feature-settings:"tnum" 1}
+
+/* section entrance — scroll-driven where supported, no JS, no timers.
+   Guarded so unsupported browsers never see a hidden element. */
+@supports (animation-timeline:view()){
+  @media(prefers-reduced-motion:no-preference) and (min-width:881px){
+    #main-content > .card,
+    #main-content > .collapse,
+    #main-content > .dash-cat-section{
+      animation:depthIn linear both;
+      animation-timeline:view();
+      animation-range:entry 0% entry 32%;
+    }
+    @keyframes depthIn{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  #main-content > *{animation:none !important; opacity:1 !important; transform:none !important}
+  .modal{animation:none !important}
+  .img-tile img{transition:none !important}
+}
+
+/* ═══════════════ 26 · PRINT GUARD ═══════════════════════════════════════
+   IMPORTANT — this was a real bug in the previous layers. Media queries add
+   no specificity, so the @media print rules further up this stylesheet were
+   being beaten by the later screen rules that set max-height, position and
+   overflow. Sticky headers and a 70vh cap would have followed the Final
+   Estimate onto paper and clipped it mid-table. This block runs last and
+   resets everything the screen layers introduced.
+   ═════════════════════════════════════════════════════════════════════════ */
+@media print{
+  .main,#main-content{
+    display:block !important; max-width:none !important; padding:0 !important;
+    margin:0 !important; overflow:visible !important;
+  }
+  #main-content > *{margin-bottom:10px !important}
+  .table-wrap,.table-wrap:not(:has(.fe-preview)){
+    max-height:none !important; overflow:visible !important;
+    border:none !important; border-radius:0 !important; box-shadow:none !important;
+  }
+  thead th,tbody td,
+  .table-wrap:not(:has(.fe-preview)) thead th:first-child,
+  .table-wrap:not(:has(.fe-preview)) tbody td:first-child{
+    position:static !important; box-shadow:none !important; white-space:normal !important;
+  }
+  .totals-box,#ws-tabs,.ws-toolbar,.sidenav,.modal > .modal-head,.modal > .flex:last-child{
+    position:static !important; box-shadow:none !important;
+    -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  }
+  .card,.collapse,.dash-cat-section,.stat-card{
+    box-shadow:none !important; animation:none !important;
+    opacity:1 !important; transform:none !important;
+    break-inside:avoid; page-break-inside:avoid;
+  }
+  tbody tr:nth-child(even) > td{background:transparent !important}
+  .page-head::after{display:none}
+  .bottom-action-bar,.mobile-nav,.toolbar-actions{display:none !important}
+}
