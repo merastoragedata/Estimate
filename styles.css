@@ -1393,132 +1393,343 @@ body::after{
 @media print{ #build-stamp{ display:none } }
 
 /* ████████████████████████████████████████████████████████████████████████
-   ✦✦ STRUCTURE LAYER ✦✦
-   Layout only. No colour, no theme, no new ornament — everything above this
-   line is the stylesheet you already had, unchanged.
+   ✦✦ v3 — STRUCTURE + MODERNISATION LAYER ✦✦
+   Everything above this line is your original stylesheet, untouched.
 
-   This layer re-organises the page purely through CSS. No markup, no render
-   code, no flow, no options are touched. It works by taking containers that
-   the HTML already emits and giving them a real layout system:
+   This layer is appended last, so it wins on cascade order at equal
+   specificity. Where an earlier rule in this file used higher specificity
+   (the LUXE / MAXIMALIST layers did, in places), the rule below matches or
+   exceeds it deliberately — those cases are marked "beats".
 
-     · #main-content becomes a flow container with one spacing scale, so the
-       ad-hoc inline margin-bottoms stop fighting each other
-     · .est-card becomes a GRID, so every row in a list shares column tracks
-       and the money column actually lines up down the page
-     · tables get a scroll frame with a pinned header and room to breathe
-     · toolbars and tab strips pin while long data scrolls under them
-     · option lists, field rows and button clusters get even tracks instead
-       of ragged wraps
+   Where an INLINE style="" attribute would win, !important is used. It is
+   applied only to box-model properties (margin / padding / gap / width /
+   max-width / grid). It is NEVER applied to `display`, because the render
+   code toggles panels with inline display:none and overriding that would
+   break tab switching, file inputs and error text.
 
-   Written to sit last so it wins on cascade order without needing !important,
-   except in the few places where it has to beat an inline style attribute.
+   No markup, no render code, no flow, no options changed.
    ████████████████████████████████████████████████████████████████████████ */
 
-/* ── One spacing scale ──────────────────────────────────────────────────
-   Blocks are emitted with assorted inline margin-bottoms (16px here, 18px
-   there, none elsewhere). Turning the page into a flex column with a single
-   gap makes the rhythm uniform; the !important zeroes the inline margins so
-   they don't stack on top of the gap. ── */
-:root{
-  --gap-block:18px;      /* between top-level page blocks */
-  --gap-tight:12px;      /* inside grouped clusters       */
-  --page-max:1460px;     /* stops data running edge-to-edge on wide screens */
+/* ═══════════════ 0 · MISSING PIECES ══════════════════════════════════════
+   Found by diffing every class used in index.html against every class with a
+   rule in this stylesheet. These were being emitted with no styling at all.
+   ═════════════════════════════════════════════════════════════════════════ */
+.justify-center{justify-content:center}     /* used in markup, never defined */
+.items-end{align-items:flex-end}            /* used in markup, never defined */
+.toolbar-actions{                            /* Final Estimate page toolbar  */
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end;
 }
-.main{display:block}
+.data-table{width:100%; border-collapse:collapse; font-size:13px}
+.photo-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px}
+.photo-grid img{width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid var(--line)}
+.photo-cap{font-size:11.5px; color:var(--steel-600); padding:5px 2px 0}
+.stage-pdf-cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px}
+.stage-pdf-col{min-width:0}
+.total-row > td{background:var(--surface-3); font-weight:800}
+.num{font-family:var(--font-mono); font-variant-numeric:tabular-nums; text-align:right}
+
+/* ═══════════════ 1 · RHYTHM ══════════════════════════════════════════════
+   Blocks are emitted with assorted inline margin-bottoms (16px here, 14px
+   there, none elsewhere). One flow container with one gap replaces all of
+   them; !important zeroes the inline values so they don't stack on the gap.
+   ═════════════════════════════════════════════════════════════════════════ */
+:root{
+  --gap-block:20px;
+  --page-max:1520px;
+  --r-card:16px;
+  --r-ctl:10px;
+  --elev-1:0 1px 2px rgba(13,22,40,.05), 0 1px 3px rgba(13,22,40,.05);
+  --elev-2:0 2px 4px rgba(13,22,40,.05), 0 10px 26px rgba(13,22,40,.08);
+  --elev-3:0 4px 8px rgba(13,22,40,.06), 0 22px 54px rgba(13,22,40,.13);
+}
 #main-content{
   display:flex; flex-direction:column; gap:var(--gap-block);
-  max-width:var(--page-max); margin-inline:auto; width:100%;
+  max-width:var(--page-max); margin-inline:auto !important; width:100%;
 }
 #main-content > *{margin-top:0 !important; margin-bottom:0 !important}
-#main-content > .card + .card{margin-top:0}
-/* nested blocks that carry their own inline spacing keep it — only the
-   top-level rhythm is normalised */
+#main-content > *{scroll-margin-top:72px}
+.main{display:block; padding:24px 28px 90px}
+@media(min-width:1700px){.main{padding-inline:44px}}
 
-/* ── Page head: title block left, controls right, always ────────────────
-   Currently a flex row that collapses unpredictably when the second child is
-   a <select> instead of a button. A two-track grid makes it deterministic. ── */
+/* ═══════════════ 2 · TYPE ════════════════════════════════════════════════ */
+body{font-size:14.5px; line-height:1.55}
+h1,h2,h3,h4{letter-spacing:-.018em; line-height:1.25}
+.page-title{font-size:25px; font-weight:800; letter-spacing:-.028em; line-height:1.2}
+.page-sub{font-size:13.5px; margin-top:6px; max-width:78ch; line-height:1.5}
+.card-head h3{font-size:15px; letter-spacing:-.012em}
+label{font-size:12px; letter-spacing:.01em; margin-bottom:6px}
+.hint{font-size:12px; line-height:1.55; max-width:92ch}
+.text-sm{font-size:12.5px} .text-xs{font-size:11.5px}
+.mono,.num-cell,.est-total,.sr-val,.totals-row .v{font-variant-numeric:tabular-nums}
+
+/* ═══════════════ 3 · PAGE HEAD ═══════════════════════════════════════════
+   Was a flex row that collapsed unpredictably when the trailing child was a
+   <select> rather than a button. Now a deterministic two-track grid with a
+   rule under it, so every page opens the same way.
+   ═════════════════════════════════════════════════════════════════════════ */
 .page-head{
   display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end;
-  gap:12px 20px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  gap:14px 22px; padding:2px 0 16px; margin-bottom:0 !important;
+  border-bottom:1px solid var(--line); position:relative;
+}
+.page-head::after{
+  content:''; position:absolute; left:0; bottom:-1px; width:58px; height:2px;
+  background:linear-gradient(90deg,var(--gold-400),var(--gold-500));
+  border-radius:2px;
 }
 .page-head > *{min-width:0}
-.page-head > div:first-child{min-width:0}
-.page-title{line-height:1.25}
-.page-sub{max-width:70ch}
-/* any trailing cluster of controls stays on one line and right-aligns */
 .page-head > .flex,
+.page-head > .toolbar-actions,
 .page-head > div:last-child:not(:first-child){
-  display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center;
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end;
 }
-@media(max-width:720px){
+.page-head select{width:auto !important; min-width:170px}
+@media(max-width:760px){
   .page-head{grid-template-columns:1fr; align-items:stretch}
   .page-head > .flex,
+  .page-head > .toolbar-actions,
   .page-head > div:last-child:not(:first-child){justify-content:flex-start}
+  .page-title{font-size:21px}
 }
 
-/* ── Stat strip: never squash, never orphan ─────────────────────────────
-   repeat(4,1fr) forces four columns even at 320px. auto-fit with a floor
-   lets the browser choose 4 / 2 / 1 based on the space actually available. ── */
+/* ═══════════════ 4 · SURFACES ════════════════════════════════════════════ */
+.card{
+  border-radius:var(--r-card); border:1px solid var(--line);
+  background:var(--surface); box-shadow:var(--elev-1);
+  padding:20px 22px;
+  transition:box-shadow .22s var(--ease-out), transform .22s var(--ease-out), border-color .22s var(--ease-out);
+}
+.card-tight{padding:14px 16px}
+.card.hoverable:hover{transform:translateY(-2px); box-shadow:var(--elev-2); border-color:var(--line-strong)}
+/* beats: .card.hoverable::after / .stat-card::after gradient ring from the
+   luxe layer — it fired on hover and read as a coloured halo. */
+.card.hoverable::after,.card.hoverable:hover::after,
+.stat-card::after,.stat-card:hover::after{content:none !important}
+.card-head{margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--line)}
+.card:has(> .card-head) > .card-head{border-bottom:1px solid var(--line)}
+.divider{margin:18px 0; background:var(--line)}
+
+/* a card that only holds a table shouldn't pad it twice */
+.card:has(> .table-wrap){padding:0 !important; overflow:hidden}
+.card:has(> .table-wrap) > .card-head{padding:18px 20px 14px !important; margin-bottom:0; border-bottom:none}
+.card:has(> .table-wrap) > .table-wrap{border:none; border-radius:0; border-top:1px solid var(--line)}
+.card:has(> .table-wrap) > .totals-box{margin:0 !important; border-radius:0}
+
+/* ═══════════════ 5 · STAT TILES ══════════════════════════════════════════ */
 .stats-grid{
-  display:grid; gap:12px;
-  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  display:grid; gap:14px;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
 }
-.stat-card{justify-content:flex-start; min-width:0}
-.stat-val{overflow-wrap:anywhere}
+.stat-card{
+  padding:18px 18px 16px !important; border-radius:var(--r-card);
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--elev-1);
+  position:relative; overflow:hidden; min-width:0; gap:0;
+}
+.stat-card::before{
+  width:120px; height:120px; top:-30px; right:-30px; transform:none;
+  background:radial-gradient(circle,rgba(212,175,55,.13),transparent 68%);
+}
+.stat-ic{font-size:20px; margin-bottom:10px; opacity:.9}
+/* beats: .stat-val gradient text-clip from the luxe layer, which rendered as
+   flat navy anyway on most engines and broke on the rest */
+.stat-val{
+  font-size:26px; font-weight:800; letter-spacing:-.03em; line-height:1.1;
+  background:none !important; -webkit-text-fill-color:currentColor !important;
+  color:var(--navy-900) !important;
+}
+.stat-label{margin-top:6px; font-size:10.5px; letter-spacing:.06em; color:var(--steel-600)}
+.stat-card:hover{animation:none !important; box-shadow:var(--elev-2); transform:translateY(-2px)}
 @media(max-width:880px){
-  .stats-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .stats-grid{grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:10px}
+  .stat-val{font-size:20px}
 }
 
-/* ── Filter / search bar: input takes the room, controls hold their size ── */
-.card-tight > .flex.items-center{gap:10px; align-items:center}
-.card-tight > .flex.items-center > .field{flex:1 1 260px; min-width:0}
-.card-tight > .flex.items-center > .btn{flex:0 0 auto}
+/* ═══════════════ 6 · CONTROLS ════════════════════════════════════════════ */
+.btn{
+  border-radius:var(--r-ctl); padding:10px 16px; font-size:13px; font-weight:650;
+  min-height:40px; letter-spacing:.005em;
+}
+.btn-sm{padding:7px 12px; min-height:32px; font-size:12px; border-radius:8px}
+.btn-xs{padding:4px 9px; min-height:24px; font-size:10.5px; border-radius:6px}
+.btn-ghost{background:var(--surface); border-color:var(--line-strong); box-shadow:var(--elev-1)}
+.btn-ghost:hover{background:var(--surface-2); border-color:var(--steel-400); transform:translateY(-1px)}
+.btn-primary,.btn-gold{box-shadow:var(--elev-1)}
+.btn-primary:hover,.btn-gold:hover{transform:translateY(-1px); box-shadow:var(--elev-2)}
+.btn:focus-visible{outline:2px solid var(--gold-400); outline-offset:2px}
+/* button clusters keep one gutter everywhere */
+.flex.gap-2{gap:9px} .flex.gap-3{gap:13px}
+.collapse-body-inner > .flex,
+.card > .flex{row-gap:10px}
 
-/* ════════════════════════════════════════════════════════════════════════
-   ESTIMATE LISTS — the main structural change
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=email],select,textarea{
+  border-radius:var(--r-ctl); padding:10px 13px; font-size:13.5px; min-height:42px;
+  border-width:1px; border-color:var(--line-strong); background:var(--surface);
+  transition:border-color .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(212,175,55,.18);
+}
+select{cursor:pointer}
+textarea{min-height:96px; padding:12px 13px}
+.field{margin-bottom:16px}
+.field-row{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:0 16px; align-items:start;
+}
+.field-row > *{flex:initial; min-width:0}
+@media(max-width:480px){.field-row{grid-template-columns:1fr}}
+/* the many `<label style="display:flex;flex-direction:column">` inline fields
+   used on Rates / Final Estimate — can't change their display, but they can
+   be given the same spacing and control sizing as a real .field */
+.flex > label{gap:6px; font-size:12px; font-weight:600; color:var(--steel-700); margin-bottom:0}
+.flex > label > input,.flex > label > select{margin-top:5px}
+
+.qty-stepper{border-radius:var(--r-ctl); border-width:1px; overflow:hidden}
+.qty-stepper button{width:30px; font-size:15px}
+.qty-input{border-radius:8px}
+
+.radio-pill{border-radius:99px; padding:8px 15px; border-width:1px; font-size:12.5px}
+.radio-pill:hover{transform:translateY(-1px)}
+.radio-pill-group{gap:9px}
+
+/* option lists read as a set of tracks, not as leftovers that wrapped */
+.check-option-list{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:10px;
+}
+.check-option{
+  flex:initial; min-width:0; border-radius:var(--r-ctl); padding:11px 14px; border-width:1px;
+}
+.check-option:hover{transform:translateY(-1px); box-shadow:var(--elev-1)}
+.check-option.checked{box-shadow:0 0 0 1px var(--navy-700) inset}
+.check-option .opt-label{white-space:normal; overflow-wrap:anywhere}
+.check-option-grid{grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+
+.toggle-track{width:42px; height:23px}
+.toggle-track::after{width:19px; height:19px}
+.toggle.on .toggle-track::after{transform:translateX(19px)}
+
+.badge{padding:4px 10px; font-size:10.5px; letter-spacing:.04em; border-radius:99px; font-weight:700}
+
+/* ═══════════════ 7 · TABLES ══════════════════════════════════════════════
+   thead th was already position:sticky, but nothing above it ever scrolled,
+   so it never pinned. Giving .table-wrap a height budget makes it the scroll
+   container and the header finally works. Cells get real vertical room.
+   ═════════════════════════════════════════════════════════════════════════ */
+.table-wrap{
+  overflow:auto; max-height:min(70vh,780px); scrollbar-gutter:stable;
+  border-radius:var(--r-card); border:1px solid var(--line); background:var(--surface);
+}
+/* the Final Estimate preview is a document, not a viewport — never cage it */
+.table-wrap:has(.fe-preview),
+#fe-result .table-wrap,
+#fe-print-portal .table-wrap{max-height:none !important; overflow-y:visible; overflow-x:auto}
+
+thead th{padding:12px 15px; font-size:11px; letter-spacing:.05em; z-index:3}
+thead th:first-child{border-top-left-radius:0}
+tbody td{padding:12px 15px; line-height:1.5}
+tbody tr:nth-child(even) > td{background:rgba(20,40,80,.022)}
+tbody tr:hover > td{background:var(--surface-2)}
+.num-cell{min-width:116px; padding-right:18px !important}
+thead th.num-cell{text-align:right}
+tbody td:nth-child(2){min-width:230px}
+.data-table thead th{background:var(--navy-900); color:#fff; text-align:left; padding:12px 15px;
+  font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700}
+.data-table tbody td{padding:11px 15px; border-bottom:1px solid var(--line)}
+
+/* totals pin to the foot of the section they total */
+.totals-box{
+  position:sticky; bottom:0; z-index:4; border-radius:0 0 var(--r-card) var(--r-card);
+  padding:16px 20px !important; gap:8px;
+  box-shadow:0 -8px 24px rgba(7,17,31,.18);
+}
+.totals-row{gap:26px}
+.totals-row .v{margin-left:auto}
+.totals-row.grand{font-size:18px; padding-top:10px}
+/* beats: the luxe layer ran a shine across every totals row every 4.5s,
+   forever, whether or not the figure had changed */
+.totals-box::after,.sr-row.final::after{
+  animation:luxMoneyShine 1.2s var(--ease-out) .15s 1 !important;
+}
+
+/* ═══════════════ 8 · TABS ════════════════════════════════════════════════ */
+.tabs{
+  gap:4px; border-bottom:1px solid var(--line); padding:0 0 0;
+  margin-bottom:0 !important;
+}
+.tab{
+  padding:11px 16px; font-size:13px; font-weight:700; border-radius:10px 10px 0 0;
+  border-bottom-width:2.5px;
+}
+.tab:hover{background:var(--surface-2)}
+.seg-tabs{padding:6px; border-radius:14px; gap:6px}
+.seg-tab{padding:10px 16px; border-radius:10px; min-height:40px}
+.seg-tab.active{box-shadow:var(--elev-1)}
+/* pin the workspace tab strip while long item tables scroll under it.
+   .main is the scroll container (overflow-y:auto), so top:0 pins to it. */
+@media(min-width:881px){
+  #ws-tabs{
+    position:sticky; top:0; z-index:26; background:var(--surface-2);
+    -webkit-backdrop-filter:saturate(150%) blur(10px); backdrop-filter:saturate(150%) blur(10px);
+    padding-top:10px; margin-top:-10px;
+  }
+  .ws-toolbar{position:sticky; top:0; z-index:28}
+}
+
+/* ═══════════════ 9 · TOOLBARS & DOCK ═════════════════════════════════════ */
+.ws-toolbar{
+  display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap;
+  padding:12px 16px !important; border-radius:var(--r-card); box-shadow:var(--elev-1);
+}
+.ws-toolbar-group{flex:1 1 auto; min-width:0; gap:9px}
+.bottom-action-bar{
+  border-radius:99px; padding:10px 14px !important; gap:9px;
+  box-shadow:var(--elev-3); border-color:var(--line-strong);
+  -webkit-backdrop-filter:saturate(160%) blur(12px); backdrop-filter:saturate(160%) blur(12px);
+  background:rgba(255,255,255,.9); bottom:16px; width:fit-content; margin-inline:auto !important;
+  max-width:100%;
+}
+.bottom-action-bar .btn{flex:0 0 auto}
+@media(max-width:880px){
+  .bottom-action-bar{border-radius:var(--r-card); width:auto; bottom:10px}
+  .bottom-action-bar .btn{flex:1 1 auto}
+}
+
+/* ═══════════════ 10 · ESTIMATE LISTS ═════════════════════════════════════
    Rows were flex, so each row sized its own columns from its own content:
-   serial, icon, name, amount and actions all landed at different x positions
-   down the list, and long names pushed the amounts around. As a grid with
-   fixed tracks, every row in a list shares the same column geometry — the
-   amount column becomes a true column you can read straight down.
-   ════════════════════════════════════════════════════════════════════════ */
+   serial, icon, name, amount and actions landed at different x positions all
+   the way down the list, and a long name shoved the amount sideways. As a
+   grid they share tracks, so the money column is a real column.
+   ═════════════════════════════════════════════════════════════════════════ */
 .est-list{gap:0}
 .est-card{
   display:grid;
-  /* rail | sno | icon | main | total | actions   (:has adds the checkbox) */
-  grid-template-columns:3px 30px 38px minmax(0,1fr) minmax(140px,auto) auto;
+  grid-template-columns:3px 32px 40px minmax(0,1fr) minmax(150px,auto) auto;
   align-items:center; column-gap:14px; row-gap:0;
-  padding:14px 18px 14px 0;
+  padding:15px 18px 15px 0; border-radius:var(--r-ctl);
 }
 .est-card:has(.est-check){
-  grid-template-columns:3px auto 30px 38px minmax(0,1fr) minmax(140px,auto) auto;
+  grid-template-columns:3px auto 32px 40px minmax(0,1fr) minmax(150px,auto) auto;
 }
-.est-card::before{grid-row:1; margin-right:0; align-self:stretch}
+.est-card::before{grid-row:1; margin-right:0; align-self:stretch; width:3px}
 .est-card .est-check{justify-self:center}
-.est-card .est-sno{width:auto; justify-self:center}
+.est-card .est-sno{width:auto; justify-self:center; font-size:11.5px}
+.est-card .est-icon{width:40px; height:40px; border-radius:12px}
 .est-card .est-main{min-width:0}
-.est-card .est-name{min-width:0}
-/* the meta line is a label strip — let it wrap as a unit, not mid-token */
-.est-card .est-meta{row-gap:4px}
+.est-card .est-name{font-size:14.5px}
+.est-card .est-meta{row-gap:5px; margin-top:5px}
 .est-card .est-meta > *{flex:0 0 auto}
-.est-card .est-total{justify-self:end; text-align:right; white-space:nowrap}
-.est-card .est-actions{justify-self:end; flex:none}
-
-/* Phone: two clean lines — identity above, money + actions below — with the
-   rail still running the full height of the wrapped row. */
+.est-card .est-total{justify-self:end; text-align:right; white-space:nowrap; font-size:15.5px}
+.est-card .est-actions{justify-self:end; flex:none; gap:5px}
+.est-card:hover{box-shadow:var(--elev-1)}
 @media(max-width:680px){
   .est-card{
     grid-template-columns:3px 26px minmax(0,1fr) auto;
-    grid-template-areas:
-      "rail sno  main  main"
-      "rail .    total acts";
-    column-gap:10px; row-gap:8px; padding:13px 12px 13px 0;
+    grid-template-areas:"rail sno main main" "rail . total acts";
+    column-gap:10px; row-gap:9px; padding:14px 12px 14px 0;
   }
   .est-card:has(.est-check){
     grid-template-columns:3px auto 26px minmax(0,1fr) auto;
-    grid-template-areas:
-      "rail chk sno  main  main"
-      "rail chk .    total acts";
+    grid-template-areas:"rail chk sno main main" "rail chk . total acts";
   }
   .est-card::before{grid-area:rail}
   .est-card .est-check{grid-area:chk}
@@ -1526,202 +1737,145 @@ body::after{
   .est-card .est-main{grid-area:main}
   .est-card .est-total{grid-area:total; justify-self:start; text-align:left}
   .est-card .est-actions{grid-area:acts; justify-self:end}
-  .est-card .est-icon{display:none}
 }
 
-/* Category sections: give each group a real head-and-body relationship */
+/* each category becomes a real panel with a head and a body */
 .dash-cat-section{
-  border:1px solid var(--line); border-radius:var(--radius-lg);
-  background:var(--surface); padding:14px 16px 6px; box-shadow:var(--shadow-sm);
+  border:1px solid var(--line); border-radius:var(--r-card); background:var(--surface);
+  padding:16px 18px 8px; box-shadow:var(--elev-1); margin-bottom:0 !important;
 }
-.dash-cat-head{margin-bottom:6px}
-.dash-cat-section > .est-list{margin:0 -16px}
-.dash-cat-section > .est-list .est-card{padding-left:0; padding-right:16px}
-.dash-cat-section > .est-list .est-card::before{margin-left:0}
-.fy-collapse{background:var(--surface-2)}
+.dash-cat-head{
+  margin-bottom:8px; padding-bottom:10px; font-size:13px; letter-spacing:.02em;
+  border-bottom-width:1px; border-bottom-color:var(--line);
+}
+.dash-cat-head::before{
+  content:''; width:3px; height:15px; border-radius:2px; flex:none;
+  background:linear-gradient(180deg,var(--gold-400),var(--gold-500));
+}
+.dash-cat-section > .est-list{margin:0 -18px}
+.dash-cat-section > .est-list .est-card{padding-left:0; padding-right:18px; border-radius:0}
+.fy-collapse{border-radius:var(--r-ctl); background:var(--surface-2)}
 .fy-collapse .est-list{margin:0}
 
-/* ════════════════════════════════════════════════════════════════════════
-   TABLES — a scroll frame with a pinned header
-   thead th was already position:sticky, but nothing above it scrolled, so it
-   never pinned. Giving .table-wrap a height budget turns it into the scroll
-   container and the header finally does its job. Cells also get vertical
-   room — this is the "space for data" part.
-   ════════════════════════════════════════════════════════════════════════ */
-.table-wrap{
-  overflow:auto; max-height:min(68vh,760px);
-  scrollbar-gutter:stable;
-  background:var(--surface);
-}
-/* the Final Estimate preview is a document, not a viewport — never cage it */
-.table-wrap:has(.fe-preview),
-#fe-result .table-wrap,
-#fe-print-portal .table-wrap{max-height:none; overflow-x:auto; overflow-y:visible}
-
-thead th{box-shadow:0 1px 0 var(--line-strong)}
-tbody td{padding:11px 14px; line-height:1.45}
-thead th{padding:11px 14px}
-/* numeric columns never wrap and hold a common width so digits align */
-.num-cell{min-width:112px; padding-right:16px}
-thead th.num-cell{text-align:right}
-/* description columns get the room instead */
-tbody td:nth-child(2){min-width:220px}
-/* zebra makes long item lists scannable across many columns */
-tbody tr:nth-child(even) > td{background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
-tbody tr:hover > td{background:var(--surface-2)}
-.qty-input,.qty-stepper{margin:0}
-
-/* A card whose only job is to hold a table shouldn't pad it in twice */
-.card:has(> .table-wrap){padding:0; overflow:hidden}
-.card:has(> .table-wrap) > .card-head{padding:16px 18px 12px; margin-bottom:0}
-.card:has(> .table-wrap) > .table-wrap{border:none; border-radius:0; border-top:1px solid var(--line)}
-.card:has(> .table-wrap) > .totals-box{margin:0; border-radius:0}
-
-/* ── Totals: pin to the foot of the section it totals ───────────────────── */
-.totals-box{
-  position:sticky; bottom:0; z-index:3;
-  box-shadow:0 -6px 18px rgba(7,17,31,.14);
-}
-.totals-row{gap:24px}
-.totals-row .v{margin-left:auto}
-
-/* ════════════════════════════════════════════════════════════════════════
-   PINNED CHROME — tab strip and toolbar stay reachable while data scrolls.
-   .main is the scroll container (overflow-y:auto), so top:0 pins to it.
-   ════════════════════════════════════════════════════════════════════════ */
-@media(min-width:881px){
-  #ws-tabs,
-  .seg-tabs{
-    position:sticky; top:0; z-index:22;
-    background:var(--surface-2);
-    -webkit-backdrop-filter:saturate(140%) blur(8px); backdrop-filter:saturate(140%) blur(8px);
-    padding-top:8px; margin-top:-8px;
-  }
-  .ws-toolbar{position:sticky; top:0; z-index:24}
-}
-#main-content > *{scroll-margin-top:64px}
-
-/* Workspace toolbar: primary actions left, exports pushed to the right edge */
-.ws-toolbar{
-  display:flex; align-items:center; gap:10px 16px;
-  padding:10px 14px;
-}
-.ws-toolbar-group{flex:1 1 auto; min-width:0}
-.ws-toolbar-exports{margin-left:auto; flex:0 0 auto}
-@media(max-width:880px){
-  .ws-toolbar-exports{margin-left:0}
-}
-
-/* ── Tab strip: even, tappable, no ragged overflow ── */
-.tabs{gap:2px; padding-bottom:0}
-.tab{flex:0 0 auto}
-
-/* ════════════════════════════════════════════════════════════════════════
-   FORMS — even tracks instead of ragged wraps
-   ════════════════════════════════════════════════════════════════════════ */
-.field-row{
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-  gap:0 14px; align-items:start;
-}
-.field-row > *{flex:initial; min-width:0}
-@media(max-width:480px){.field-row{grid-template-columns:1fr}}
-
-/* SOR version / option checkboxes: a grid reads as a set, a wrap reads as
-   leftovers. Tracks size to the longest label, then repeat. */
-.check-option-list{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
-  gap:10px;
-}
-.check-option{flex:initial; min-width:0}
-.check-option .opt-label{white-space:normal; overflow-wrap:anywhere}
-
-/* Radio pills and button clusters share one alignment */
-.radio-pill-group{gap:8px}
-
-/* PMO / PR entries and charge grids scale with the space they're given */
-.pmo-pr-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-.stages-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); column-gap:28px}
-
-/* ════════════════════════════════════════════════════════════════════════
-   ABSTRACT — a document with three true columns
-   ════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════ 11 · ABSTRACT ═══════════════════════════════════════════ */
 .sr-row{
-  grid-template-columns:44px minmax(0,1fr) minmax(170px,auto);
-  column-gap:14px; padding:12px 18px; align-items:baseline;
+  grid-template-columns:46px minmax(0,1fr) minmax(180px,auto);
+  column-gap:16px; padding:13px 20px; align-items:baseline;
 }
-.sr-row .sr-val{justify-self:end}
-.sr-row.final{padding:16px 18px; margin-top:6px}
-.awords-box{margin-top:12px}
+.sr-row .sr-val{justify-self:end; font-size:14px}
+.sr-row .sr-label{font-size:13.5px}
+.sr-row.final{padding:18px 20px; border-radius:var(--r-ctl); margin-top:8px}
+.awords-box{border-radius:var(--r-ctl); padding:16px 20px}
 @media(max-width:480px){
-  .sr-row{grid-template-columns:30px minmax(0,1fr); row-gap:4px; padding:11px 12px}
+  .sr-row{grid-template-columns:30px minmax(0,1fr); row-gap:5px; padding:12px 14px}
   .sr-row .sr-val{grid-column:2; justify-self:start}
 }
 
-/* ════════════════════════════════════════════════════════════════════════
-   PANELS — collapsibles read as one stack, not a pile
-   ════════════════════════════════════════════════════════════════════════ */
-.collapse{margin-bottom:0; background:var(--surface)}
-.collapse-head{padding:14px 18px; gap:12px}
-.collapse-body-inner{padding:6px 18px 18px}
-/* consecutive collapsibles merge into a single bordered group */
+/* ═══════════════ 12 · COLLAPSIBLES ═══════════════════════════════════════ */
+.collapse{
+  border-radius:var(--r-card); border-color:var(--line); background:var(--surface);
+  box-shadow:var(--elev-1); margin-bottom:0 !important;
+}
+.collapse-head{padding:15px 20px; gap:12px; font-weight:700}
+.collapse-head:hover{background:var(--surface-2)}
+.collapse.open > .collapse-head{border-bottom:1px solid var(--line); background:var(--surface-2)}
+.collapse-head .chev{font-size:13px; color:var(--steel-400)}
+.collapse-body-inner{padding:16px 20px 20px}
+/* consecutive panels merge into one bordered stack */
 .collapse + .collapse{border-top-left-radius:0; border-top-right-radius:0; border-top:none; margin-top:-1px}
 .collapse:has(+ .collapse){border-bottom-left-radius:0; border-bottom-right-radius:0}
 
-/* Cards: give content a measure so paragraphs don't run 200 characters wide */
-.card-head{margin-bottom:14px}
-.card .hint,.card > p.text-sm{max-width:88ch}
-
-/* Button clusters inside panels wrap evenly and keep a consistent gutter */
-.collapse-body-inner > .flex.gap-2{gap:10px; row-gap:10px}
-.bottom-action-bar{gap:10px; padding:12px 14px}
-.bottom-action-bar .btn{flex:0 0 auto}
-@media(max-width:880px){.bottom-action-bar .btn{flex:1 1 auto}}
-
-/* ── Modal: header pinned, body scrolls, actions pinned ─────────────────
-   Long modals currently scroll their title out of view and bury the confirm
-   button at the bottom of the scroll. ── */
-.modal{display:flex; flex-direction:column; gap:0; padding:0; max-height:min(88vh,860px)}
+/* ═══════════════ 13 · MODAL ══════════════════════════════════════════════
+   Long modals scrolled their title out of view and buried the confirm button
+   at the bottom of the scroll. Head and action row now pin.
+   ═════════════════════════════════════════════════════════════════════════ */
+.modal{
+  display:flex; flex-direction:column; padding:0 !important;
+  border-radius:var(--r-card); max-height:min(88vh,880px); box-shadow:var(--elev-3);
+}
 .modal > *{flex:0 0 auto}
 .modal > .modal-head{
-  position:sticky; top:0; z-index:2; margin:0;
-  padding:18px 22px 14px; background:var(--surface); border-bottom:1px solid var(--line);
+  position:sticky; top:0; z-index:3; margin-bottom:0 !important;
+  padding:20px 24px 16px !important; background:var(--surface);
+  border-bottom:1px solid var(--line);
 }
-.modal > *:not(.modal-head):not(.flex){padding-inline:22px}
-.modal > *:nth-child(2){padding-top:16px}
+.modal > *:not(.modal-head){padding-inline:24px}
+.modal > *:nth-child(2){padding-top:18px}
+.modal > *:last-child{padding-bottom:22px}
 .modal > .flex:last-child{
-  position:sticky; bottom:0; z-index:2; margin:0;
-  padding:14px 22px 18px; background:var(--surface); border-top:1px solid var(--line);
+  position:sticky; bottom:0; z-index:3; margin-top:0 !important;
+  padding:16px 24px 20px !important; background:var(--surface);
+  border-top:1px solid var(--line);
 }
-.modal > *:last-child:not(.flex){padding-bottom:20px}
-.modal .field-row{gap:0 14px}
+.modal-head h3{font-size:17px}
+.modal-close{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center}
+.modal-backdrop{padding:24px}
 
-/* ── Sidenav: pinned rail with its own scroll ───────────────────────────── */
+/* ═══════════════ 14 · SIDENAV & TOPBAR ═══════════════════════════════════ */
 @media(min-width:881px){
   .sidenav{
     position:sticky; top:58px; align-self:flex-start;
     height:calc(100vh - 58px); overflow-y:auto; overscroll-behavior:contain;
+    width:234px; padding:16px 12px;
   }
   .sidenav::-webkit-scrollbar{width:6px}
 }
+.nav-item{padding:10px 13px; font-size:13.5px; border-radius:var(--r-ctl)}
+.nav-item .ic{font-size:16px}
+.mnav-item{border-radius:10px; padding:7px 14px}
+.topbar-row1{height:58px}
+.user-pill{border-radius:99px; padding:5px 12px 5px 5px}
 
-/* ── Image grid + lightbox: consistent tiles ────────────────────────────── */
-.img-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px}
-.img-tile img{height:112px}
+/* ═══════════════ 15 · AI CREATOR ═════════════════════════════════════════ */
+.aic-mode-banner{border-radius:var(--r-ctl); padding:12px 16px}
+.aic-chat{border-radius:var(--r-card); padding:16px; gap:12px; max-height:420px}
+.aic-msg-bubble{border-radius:16px; padding:11px 15px; max-width:74%; box-shadow:var(--elev-1)}
+.aic-msg-user .aic-msg-bubble{border-bottom-right-radius:5px}
+.aic-msg-assistant .aic-msg-bubble{border-bottom-left-radius:5px}
+.aic-input-row{gap:12px}
+.aic-input-row textarea{min-height:72px}
+.aic-tab-panel{min-width:0}
 
-/* ── Empty states get vertical presence instead of floating ─────────────── */
-.empty-state{padding:64px 24px; border-radius:var(--radius-lg)}
+/* ═══════════════ 16 · PROGRESS / STAGES / IMAGES ═════════════════════════ */
+.stages-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); column-gap:30px}
+.stage-row{padding:14px 6px; gap:14px}
+.stage-check{width:22px; height:22px; border-radius:7px}
+.stage-name{font-size:13.5px}
+.stage-remarks-input,.stage-link-input{min-height:36px; padding:8px 11px; border-radius:9px}
+.pmo-pr-grid{grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:14px}
+.pmo-pr-entry{border-radius:var(--r-ctl); padding:14px 16px}
+.img-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px}
+.img-tile{border-radius:var(--r-ctl)}
+.img-tile img{height:118px}
+.lock-banner{border-radius:var(--r-ctl); padding:12px 16px}
 
-/* ── ZEST03 preview: room for the two description columns ───────────────── */
-.fe-preview th,.fe-preview td{padding:7px 10px}
-.fe-preview td.num-cell{min-width:104px}
+/* ═══════════════ 17 · RICH EDITOR ════════════════════════════════════════ */
+.rich-editor{border-radius:var(--r-ctl)}
+.rich-toolbar{padding:7px 8px; gap:4px}
+.rich-toolbar button,.rich-toolbar select{height:32px; min-width:34px; border-radius:8px}
+.rich-body{padding:12px 14px; min-height:120px}
 
-/* ── Wide screens: the page stops growing, the data doesn't get thinner ── */
-@media(min-width:1600px){
-  .main{padding-inline:40px}
-}
+/* ═══════════════ 18 · FEEDBACK ═══════════════════════════════════════════ */
+.empty-state{padding:70px 24px; border-radius:var(--r-card)}
+.empty-state .ic{font-size:44px; margin-bottom:14px}
+.toast{border-radius:var(--r-ctl); padding:13px 18px; box-shadow:var(--elev-3)}
+#toast-stack{bottom:24px; right:24px; gap:10px}
+.error-text{font-size:12.5px}
+.lightbox img{border-radius:var(--r-card)}
+
+/* ═══════════════ 19 · ZEST03 PREVIEW ═════════════════════════════════════ */
+.fe-preview th,.fe-preview td{padding:8px 11px}
+.fe-preview td.num-cell{min-width:106px; padding-right:11px !important}
+
+/* ═══════════════ 20 · NARROW SCREENS ═════════════════════════════════════ */
 @media(max-width:880px){
+  .main{padding:16px 14px 96px}
   #main-content{gap:14px}
-  .est-card{column-gap:10px}
   .table-wrap{max-height:none}
-  .totals-box{position:static}
+  .totals-box{position:static; border-radius:0 0 var(--r-card) var(--r-card)}
+  .card{padding:16px}
+  .collapse-head{padding:13px 15px}
+  .collapse-body-inner{padding:12px 15px 16px}
+  .modal > *:not(.modal-head){padding-inline:18px}
+  .modal > .modal-head{padding:16px 18px 14px !important}
 }
